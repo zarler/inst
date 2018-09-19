@@ -1,0 +1,98 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: wangchao
+ * Date: 2018/1/29
+ * Time: 下午1:50
+ *
+ * 宜信致诚
+ */
+
+class Lib_CreditReview_ZhiCheng extends Lib_CreditReview_RiskCommon
+
+{
+    protected $action;
+
+    const PROVIDER = "ZhiCheng";
+
+
+    public function RiskService(){
+
+        $user_data = Model::factory('User')->get_one($this->user_id);
+        if(empty($user_data)){
+            return false;
+        }
+        $param = [
+            'name' => $user_data['name'] ?$user_data['name'] : '' ,
+            'idNo' => $user_data['identity_code'] ?$user_data['identity_code'] : '',
+            'queryReason' => 10
+        ];
+
+        $result = Lib::factory("Risk_API")->anti('ZhiCheng')->query(
+            'execute', $param
+        )->execute()->body();
+
+        if (isset($result['api_result'])){
+            Model::factory('ZhiCheng_Data')->create(
+                [
+                    'request_data' => json_encode($param),
+                    'module' => 'RiskService',
+                    'response_data' => json_encode($result['api_result']),
+                    'user_id' => $this->user_id
+                ]
+            );
+            $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'message' => '接口请求成功']);
+        }else{
+            $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => $result['msg']]);
+
+        }
+        return $this;
+    }
+
+
+    //第一步远程请求
+    public function getData($action)
+    {
+        if ($action) {
+            call_user_func_array('self::'.$action, ['data' => []]);
+        } else {
+            $this->response(false, [], Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, '缺少参数 action');
+        }
+
+        return $this;
+    }
+
+    //第二步 获取数据并发送
+
+    public function sendData($action)
+    {
+
+        $Original = Model::factory("ZhiCheng_Data")->get_data($this->user_id,'RiskService');
+
+
+        if (isset($Original['response_data'])) {
+            $data = [
+                'data' => [
+                    'Original' => json_decode($Original['response_data'],true),
+                ],
+                'provider' => self::PROVIDER,
+                'action' => $action,
+            ];
+        }
+
+        $this->send($data, self::PROVIDER, $action);
+
+        return $this;
+    }
+
+    //第三步 获取决策
+
+    public function getDecision($action)
+    {
+        $this->get(self::PROVIDER, $action);
+
+        return $this;
+    }
+
+
+}

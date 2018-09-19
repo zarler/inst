@@ -1,0 +1,391 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 16/10/14
+ * Time: 下午2:04
+ *
+ * 电话本分欺诈类
+ *
+ */
+class Lib_TCCredit_MobileAudit {
+    const INIT = Model_AntiFraud::INIT;             //初始值(未查询)
+    const PASS = Model_AntiFraud::PASS;             //通过
+    const UNPASS = Model_AntiFraud::UNPASS;         //未通过
+
+    const CONTACT_NOT_IN_PHONEBOOK_OLD_USER_ID = 583606;//大于这个用户ID 在借款反欺诈操作时进行联系人与本人电话本检查。
+
+
+
+    //模块名与对应方法
+    const MODULES = [
+        'phone_book_rep25' => [   //单人电话本重复超过25个含以上
+            'lib' => 'MobileDB_Search',
+            'param' => ['phone_book'],
+            'func' => 'phone_book_rep25',
+            'log_type' => Model_AntiFraud_Log::TYPE_TCCREDIT_PHONEBOOK_REPEAT25, //单人电话本重复超过25
+            'model' => 'AntiFraud_MobileAudit',
+        ],
+        'phone_book_m2' => [   //电话本命中快金M2名单1个含以上
+            'lib' => 'MobileDB_Search',
+            'param' => ['m2'],
+            'func' => 'phone_book_m2',
+            'log_type' => Model_AntiFraud_Log::TYPE_TCCREDIT_PHONEBOOK_M2_P1, //电话
+            'model' => 'AntiFraud_MobileAudit',
+        ],
+        'call_history_m2' => [   //通话记录命中快金M2名单1含以上
+            'lib' => 'MobileDB_Search',
+            'param' => ['m2'],
+            'func' => 'call_history_m2',
+            'log_type' => Model_AntiFraud_Log::TYPE_TCCREDIT_CALLHISTORY_M2_P1, //单人电话本重复超过25
+            'model' => 'AntiFraud_MobileAudit',
+        ],
+        'contact_not_in_phone_book' => [   //紧急联系人未在通讯录中
+            'lib' => '',
+            'param' => NULL,
+            'func' => 'contact_not_in_phone_book',
+            'log_type' => Model_AntiFraud_Log::TYPE_TCCREDIT_CONTACT_NOT_IN_PHONEBOOK, //单人电话本重复超过25
+            'model' => 'AntiFraud_MobileAudit',
+        ],
+
+
+    ];
+
+
+    protected $user;                    //用户记录
+    protected $model = [];              //MODEL对象数组
+    protected $record = [];             //简表结果
+    protected $result = 0;
+    protected $result_array = array();  //附属属性
+    protected $provider = '';           //服务供应者  BaiRong百融   TongDun同盾
+    protected $module = '';             //调用模块
+    protected $api_query = FALSE;       //是否请求api
+    protected $modules = [];
+
+    public function __construct($user_id = 0) {
+        $this->modules = self::MODULES;
+        if ($user_id > 0) {
+            $this->user_id($user_id);
+        }
+    }
+
+    //初始化用户
+    public function user_id($user_id) {
+        $this->user = Model::factory('User')->get_one($user_id);
+        return $this;
+    }
+
+    public function module($module) {
+        if (isset($this->modules[$module])) {
+            $this->module = $module;
+        }
+        return $this;
+    }
+
+
+    /**
+     * 从数据库中读出结果
+     * @return array
+     */
+    public function get_record() {
+        if (isset($this->user['id']) && $this->module) {
+            $this->record = Model::factory($this->modules[$this->module]['model'])->get_short_one_by_user_id($this->user['id'], $this->module);
+        }
+        return $this->record;
+    }
+
+    /**
+     * 新决策结果数据
+     * @param int $result
+     * @return array
+     */
+    public function set_record($result = self::INIT) {
+        if (isset($this->user['id']) && $this->module) {
+            if ($rs = Model::factory($this->modules[$this->module]['model'])->get_short_one_by_user_id($this->user['id'], $this->module)) {
+                return Model::factory($this->modules[$this->module]['model'])->edit_short($rs['id'], ['result' => $result]);
+            } else {
+                return Model::factory($this->modules[$this->module]['model'])->add_short([
+                    'user_id' => $this->user['id'],
+                    'module' => $this->module,
+                    'result' => $result
+                ]);
+            }
+        }
+    }
+
+
+    /**
+     * 返回结论(通过/未通过)
+     * @return int
+     */
+    public function get_result() {
+        if (isset($this->user['id']) && $this->module) {
+            $this->get_record();
+            if (!isset($this->record['result']) || $this->record['result'] == self::INIT) {
+                $this->result = $this->flush_result();//重新计算结果
+            } elseif (isset($this->record['result'])) {//数据库读出结果
+                $this->result = $this->record['result'];
+            }
+        }
+        return is_numeric($this->result)  ? (int)$this->result : 0;
+    }
+
+
+    /**
+     * 强制刷新结果
+     * @return int
+     */
+    public function flush_result($unpass_user_status=NULL) {
+        if (isset($this->user['id']) && $this->module) {
+            $func = $this->modules[$this->module]['func'];
+            $param = $this->modules[$this->module]['param'];
+            $result = $this->$func($this->user, $param);
+            if (is_array($result)) {
+                $this->result_array = $result;
+                $this->result = $result['result'];
+            } else {
+                $this->result = $result;
+            }
+            $this->set_record($result);
+        }
+        return $this->result;
+    }
+
+
+    /**
+     * 处理决策
+     * @return int
+     */
+    public function review($unpass_user_status=NULL) {
+        if (isset($this->user['id']) && $this->module) {
+            $this->get_result();
+        }
+        if($this->result==self::UNPASS && $unpass_user_status!==NULL){
+            Model::factory('User')->update($this->user['id'], array('status' => $unpass_user_status));
+            Model::factory('AntiFraud_Log')->create($this->user['id'], $this->modules[$this->module]['log_type'],$this->result,$this->user['status'],$unpass_user_status);
+        }
+        return is_numeric($this->result)  ? (int)$this->result : 0;
+    }
+
+
+
+//--------------------------------------------------------------------------------------------------
+
+    /** 电话本重复超过25个决策拒绝
+     * @param $user
+     * @param $param
+     * @return bool|int
+     */
+    public function phone_book_rep25($user, $param) {
+        $confine = 25;
+        $phones = [];
+        $rs = Model::factory('App_PhoneBook')->get_mobile_by_user_id($user['id']);
+        if ($rs) {
+            foreach ($rs as $r) {
+                $phones[] = $r['mobile'];
+            }
+        } else {
+            $redisH = Redis_Hash::instance();
+            $pb = $redisH->get('api3_phone_add_' . $user['id']);
+            if(!$pb || !isset($pb['phonebook']) || empty($pb['phonebook'])){
+                return self::INIT;//redis中也没有电话本
+            }
+            $pbs = json_decode($pb['phonebook'], TRUE);
+            if ($pbs && is_array($pbs)) {
+                foreach ($pbs as $v) {
+                    if (isset($v['tel']) && is_array($v['tel']) && count($v['tel']) > 0) {
+                        foreach ($v['tel'] as $tel) {
+                            if (!is_array($tel) && Valid::regex($tel, '/^[\+]?[0-9][0-9\- \.\,#]{4,25}[0-9]$/')) {
+                                $mobile = Tool::factory('String')->string2mobile($tel);
+                                if ($mobile) $phones[] = $mobile;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        $phones = array_unique($phones);
+
+        if (count($phones) < 1) {
+            return self::INIT;//没电话本
+        }
+        $hit_result = Lib::factory($this->modules[$this->module]['lib'])->search($phones, $param);
+        //var_dump($hit_result);
+        unset($hit_result[$user['id']]);
+        if ($hit_result && is_array($hit_result)) {
+            foreach ($hit_result as $hr) {
+                if ($hr >= $confine) {//重复率超过25 拒绝
+                    return self::UNPASS;
+                }
+            }
+
+        }
+        //未命中或未超25 通过
+        return self::PASS;
+    }
+
+
+    /** 电话本命中1个以以上M2用户 决策拒绝
+     * @param $user
+     * @param $param
+     * @return bool|int
+     */
+    public function phone_book_m2($user, $param) {
+        $confine = 1;
+        $phones = [];
+        $rs = Model::factory('App_PhoneBook')->get_mobile_by_user_id($user['id']);
+        if ($rs) {
+            foreach ($rs as $r) {
+                $phones[] = $r['mobile'];
+            }
+        } else {
+            $redisH = Redis_Hash::instance();
+            $pb = $redisH->get('api3_phone_add_' . $user['id']);
+            if(!$pb || !isset($pb['phonebook']) || empty($pb['phonebook'])){
+                return self::INIT;//redis中也没有电话本
+            }
+            $pbs = json_decode($pb['phonebook'], TRUE);
+            if ($pbs && is_array($pbs)) {
+                foreach ($pbs as $v) {
+                    if (isset($v['tel']) && is_array($v['tel']) && count($v['tel']) > 0) {
+                        foreach ($v['tel'] as $tel) {
+                            if (!is_array($tel) && Valid::regex($tel, '/^[\+]?[0-9][0-9\- \.\,#]{4,25}[0-9]$/')) {
+                                $mobile = Tool::factory('String')->string2mobile($tel);
+                                if ($mobile) $phones[] = $mobile;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        $phones = array_unique($phones);
+
+        if (count($phones) < 1) {
+            return self::INIT;//没电话本
+        }
+        $hit_result = Lib::factory($this->modules[$this->module]['lib'])->search($phones, $param);
+        //var_dump($hit_result);
+        if($hit_result && count($hit_result)>=$confine){
+            return self::UNPASS;
+        }
+        //未命中 通过
+        return self::PASS;
+    }
+
+
+
+    /** 通话记录出现1个以以上M2用户 决策拒绝
+     * @param $user
+     * @param $param
+     * @return bool|int
+     */
+    public function call_history_m2($user, $param) {
+        $confine = 1;
+        $phones = [];
+        $rs = Model::factory('App_CallHistory')->get_mobile_by_user_id($user['id']);
+        //var_dump($rs);
+        if ($rs) {
+            foreach ($rs as $r) {
+                $phones[] = $r['mobile'];
+            }
+        } else {
+            $redisH = Redis_Hash::instance();
+            $pb = $redisH->get('api3_call_add_' . $user['id']);
+            if(!$pb || !isset($pb['history_list']) || empty($pb['history_list']) ){
+                return self::INIT;
+            }
+            $calllist = json_decode($pb['history_list'], TRUE);
+            if ($calllist && is_array($calllist)) {
+                foreach ($calllist as $v) {
+                    $mobile='';
+                    if($v['type']==Model_App_CallHistory::TYPE_OUT){
+                        $mobile = Tool::factory('String')->string2mobile($v['to_number']);
+                    }else{
+                        $mobile = Tool::factory('String')->string2mobile($v['from_number']);
+                    }
+                    if ($mobile) $phones[] = $mobile;
+                }
+            }
+        }
+        $phones = array_unique($phones);
+
+        if (count($phones) < 1) {
+            return self::INIT;//没有通话记录
+        }
+        $hit_result = Lib::factory($this->modules[$this->module]['lib'])->search($phones, $param);
+        //var_dump($hit_result);
+        if($hit_result && count($hit_result)>=$confine){
+            return self::UNPASS;
+        }
+        //未命中 通过
+        return self::PASS;
+    }
+
+
+
+
+    public function contact_not_in_phone_book($user, $param){
+        $confine = 1;
+        $phones = [];
+        //2017-5-15 12点以前的用户自动通过
+        if(isset($user['id']) && (int)$user['id']<=(int)self::CONTACT_NOT_IN_PHONEBOOK_OLD_USER_ID ){
+            return self::PASS;
+        }
+
+        $rs = Model::factory('CreditInfo_Contact')->get_by_array($user['id'],[]);
+        if(!$rs){
+            return self::INIT;
+        }
+        foreach ($rs as $r){
+            if($r['mobile']) $phones[] = $r['mobile'];
+        }
+        if (count($phones) < 1) {
+            return self::INIT;//没有联系人号码记录
+        }
+
+        $pr = Model::factory('App_PhoneBook')->get_by_mobile($user['id'],$phones);
+        if(!$pr){
+            if($has_phonebook = Model::factory('App_PhoneBook')->has($user['id'])){
+                return self::UNPASS;//数据库中有通讯录,但联系人号码未找到
+            }else{
+                //数据库中没有电话本 尝试从redis中读取
+                $redisH = Redis_Hash::instance();
+                $pb = $redisH->get('api3_phone_add_' . $user['id']);
+                if(!$pb || !isset($pb['phonebook']) || empty($pb['phonebook'])){
+                    return self::INIT;//redis中也没有电话本
+                }
+                $pbs = json_decode($pb['phonebook'], TRUE);
+                $phonebooks = [];
+                if ($pbs && is_array($pbs)) {
+                    foreach ($pbs as $v) {
+                        if (isset($v['tel']) && is_array($v['tel']) && count($v['tel']) > 0) {
+                            foreach ($v['tel'] as $tel) {
+                                if (!is_array($tel) && Valid::regex($tel, '/^[\+]?[0-9][0-9\- \.\,#]{4,25}[0-9]$/')) {
+                                    $mobile = Tool::factory('String')->string2mobile($tel);
+                                    if ($mobile) $phonebooks[] = $mobile;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (count($phonebooks) < 1) {
+                    return self::INIT;//没有电话本
+                }
+                foreach ($phones as $p){
+                    if(in_array($p,$phonebooks)){
+                        return self::PASS;//至少有一个联系人出现在电话本中
+                    }
+                }
+                return self::UNPASS;//联系人号码未出现在电话本中
+            }
+        }else{
+            return self::PASS;//至少有一个联系人出现在电话本中
+        }
+    }
+
+
+
+
+
+}

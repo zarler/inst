@@ -1,0 +1,31 @@
+<?php
+/**
+ * Created by IntelliJ IDEA.
+ * User: yangyeuxin
+ * Date: 2018/1/16
+ * Time: 下午5:24
+ */
+class Model_Jinrong91_Short extends Model_Database
+{
+    const USER_JINRONG91_STATUS_INIT = 0;
+    const USER_JINRONG91_STATUS_PASS = 1;
+    const USER_JINRONG91_STATUS_REJECT = 2;
+    public function create($user_id,$module,$result)
+    {
+        list($id, $a) = DB::insert("jinrong91_short", array('user_id', 'module', 'result', 'create_time','pass_time'))->values(array($user_id, $module, $result, time(),time()))->execute();
+        return $id;
+    }
+
+    public function get_one($user_id)
+    {
+        return DB::select("*")->from("jinrong91_short")->where('user_id', '=', $user_id)->execute()->current();
+    }
+
+    public function change($id,$data){
+        if(!$id){
+            return FALSE;
+        }
+        list($id, $num) = DB::update('jinrong91_short')->set($data)->where('id', '=', $id)->execute();
+        return $num;
+    }
+}

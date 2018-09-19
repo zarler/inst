@@ -1,0 +1,45 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: wangxuesong
+ * Date: 16/11/04
+ * Time: 20:10
+ * 计算逾期 委托金额   滚动信息记入逾期订单账龄滚动表(aging_log)
+ */
+
+class Model_User_Variable extends Model_Database{
+
+    const  VARIABLE_OVERDUE_NOTE= 'overdue_note'; //贷后备注
+
+
+    //新增调取用户贷后备注
+    public function add_variable($data) {
+        $user_id = isset($data['user_id'])?$data['user_id']:'';
+        $name = isset($data['name'])?$data['name']:'';
+        $content = isset($data['content'])?$data['content']:'';
+        $rows  = DB::select()->from('user_variable')->where('user_id','=',$user_id)->and_where('name','=',$name)->execute()->current();
+        if(!empty($rows)){
+            DB::update('user_variable')->set(array("value"=>$content))->where('user_id','=',intval($user_id))->and_where('name','=',$name)->execute();
+        }else{
+            $field_arr = ['user_id','name','value','create_time'];
+            $data_arr =  [$user_id,$name,$content,time()];
+            list($insert_id,$affected_rows)=DB::insert("user_variable",$field_arr)
+                ->values($data_arr) ->execute();
+            return $insert_id;
+        }
+
+        return true;
+
+
+    }
+
+    //根据name 和user_id调用
+    public function get_variable($data) {
+        $user_id = isset($data['user_id'])?$data['user_id']:'';
+        $name = isset($data['name'])?$data['name']:'';
+        return DB::select()->from('user_variable')->where('user_id','=',$user_id)->and_where('name','=',$name)->execute()->current();
+
+    }
+    
+
+}

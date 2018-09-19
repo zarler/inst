@@ -1,0 +1,104 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+
+/**
+ * Created by PhpStorm.
+ * User: admin
+ * Date: 2018/1/17
+ * Time: 下午3:11
+ *
+ * 准入决策简报model
+ *
+ */
+class Model_AdmissionShort extends Model_Database
+{
+
+    const STATUS_VALID   = 1;   // 有效
+    const STATUS_INVALID = 2;   // 无效
+    const STATUS_RETRY   = 3;   // 请重试
+
+    public $status = [
+        self::STATUS_VALID   => '有效',
+        self::STATUS_INVALID => '无效',
+        self::STATUS_RETRY   => '请重试',
+    ];
+
+    const RULER_ZRQ10001  = 'ZRQ10001';
+    const RULER_ZRQ10002  = 'ZRQ10002';
+    const RULER_ZRQ10003  = 'ZRQ10003';
+    const RULER_ZRQ10004  = 'ZRQ10004';
+    const RULER_ZRQ10005  = 'ZRQ10005';
+    const RULER_ZRQ10006  = 'ZRQ10006';
+    const RULER_ZRQ10007  = 'ZRQ10007';
+    const RULER_ZRQ10008  = 'ZRQ10008';
+    const RULER_ZRQ10009  = 'ZRQ10009';
+    const RULER_ZRQ100010 = 'ZRQ100010';
+    const RULER_ZRQ100011 = 'ZRQ100011';
+
+    const RULERS = [
+        self::RULER_ZRQ10001  => '年龄小于22周岁或大于45周岁',
+        self::RULER_ZRQ10002  => '工作地定位、现居住地定位、当前设备定位省份任意项是新疆或西藏',
+        self::RULER_ZRQ10003  => '工作地定位、现居住地定位、当前设备定位省份任意项是延边朝鲜族自治州',
+        self::RULER_ZRQ10004  => '用户填写单位名称中，若字段中包含“小额贷款、小贷、担保、互联网 金融、互联网金融服务、金融服务 OR金融信息服务、金融信息咨询、 金融科技”任一词',
+        self::RULER_ZRQ10005  => '用户填写单位名称中，若字段中包“公安局、派出所、检察院、法院、监狱、看守所、拘留所”任一词',
+        self::RULER_ZRQ10006  => '用户填写单位名称中，若字段中包“解放军、武警及陆、海、空军”，且不包含“医院”;',
+        self::RULER_ZRQ10007  => '芝麻信用分小于600',
+        self::RULER_ZRQ10008  => '用户发起授信申请时，对用户注册时间进行判断，注册时间为凌晨3:00(含)-5:00(含)时间段内',
+        self::RULER_ZRQ10009  => '若用户申请授信时间为凌晨1:00(含)-6:00(含)时间段内',
+        self::RULER_ZRQ100010 => '通过OCR对身份证反面有效期进行验证，若有效期截止 日期距离申请日期小于等于30天',
+        self::RULER_ZRQ100011 => '手机号或身份证号命中我司自有黑名单',
+    ];
+
+    const RULER_ZRQ10002_WORK = ['新疆', '西藏'];
+    const RULER_ZRQ10003_WORK = ['延边朝鲜族自治州'];
+    const RULER_ZRQ10004_WORK = ['小额贷款','小贷','担保','互联网金融','金融服务','金融信息服务','金融信息咨询','金融科技'];
+    const RULER_ZRQ10005_WORK = ['公安局','派出所','检察院','法院','监狱','看守所','拘留所'];
+    const RULER_ZRQ10006_WORK = ['解放军','武警','陆军','海军','空军'];
+    const RULER_ZRQ10006_WORK_TWO = '医院';
+
+
+    /**
+     * 新增简报数据
+     * @param $user_id
+     * @param $module
+     * @param $result
+     */
+    public function add_short($user_id, $module, $result)
+    {
+//        $old = DB::select()->from('admission_short')
+//                           ->where('user_id', '=', $user_id)
+//                           ->and_where('module', '=', $module)
+//                           ->execute()
+//                           ->current();
+
+        $data_arr = [
+            'user_id' => $user_id,
+            'module'  => $module,
+            'result'  => $result,
+        ];
+
+//        if($old){
+//            $data_arr['update_time'] = date('Y-m-d H:i:s');
+//            $ret = DB::update('admission_short')
+//                        ->set($data_arr)
+//                        ->where('user_id', '=', $user_id)
+//                        ->and_where('module', '=', $module)
+//                        ->execute();
+//        }else{
+
+            $data_arr['create_time'] = time();
+            $ret = DB::insert('admission_short', array_keys($data_arr))
+                    ->values($data_arr)
+                    ->execute();
+
+//        }
+
+        return $ret;
+    }
+
+
+    public function getOneByUserid($user_id)
+    {
+        return DB::select()->from('admission_short')->where('user_id', '=', (int)($user_id))->execute()->current();
+    }
+}

@@ -1,0 +1,33 @@
+<?php defined('SYSPATH') or die('No direct script access.');
+
+/**
+ * Created by PhpStorm.
+ * User: chunyu
+ * Date: 17/04/11
+ * Time: 下午3:05
+ * 极光推送
+ */
+class Model_JPush extends Model_Database
+{
+
+    const JPUSP_PRE = 'user@';//极光alias前缀
+
+
+
+    public function get_one_by_code($code){
+        $data = constant('self::' . $code);
+        $config = Kohana::$config->load('env')->get('url');
+        if(isset($data['banner_link']) && substr($data['banner_link'], 0, 5) == '/app/'){
+            $data['banner_link'] = $config['wx'] . $data['banner_link'];
+        }
+        if(isset($data['go_page']) && substr($data['go_page'], 0, 5) == '/app/'){
+            $data['go_page'] = $config['wx'] . $data['go_page'];
+        }
+        if(isset($data['open_page']) && substr($data['open_page'], 0, 5) == '/app/'){
+            $data['open_page'] = $config['wx'] . $data['open_page'];
+        }
+
+        return $data;
+    }
+
+}

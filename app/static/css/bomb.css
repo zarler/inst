@@ -1,0 +1,14 @@
+
+
+.bomb-box{
+    display: block;position: fixed;width: 100%;height: 100%;background-color: rgba(0,0,0,0.7);top: 0;z-index: 99;
+}
+.bomb-box-show{
+    background: white;width: 13rem;height: 13.6rem;margin: 40% auto;border-radius: .6rem;
+}
+.bomb-box-img{
+    width: 4rem;display: inline-block;margin: 2.3rem 30% .3rem 35%
+}
+.bomb-box-show p{
+    text-align: center;font-size: .7rem;color: #555555;margin-bottom: 1.6rem;
+}

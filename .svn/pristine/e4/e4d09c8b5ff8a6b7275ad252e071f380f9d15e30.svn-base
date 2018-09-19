@@ -1,0 +1,620 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 2016/10/20
+ * Time: 上午3:08
+ *
+ * 快金反欺诈埋点
+ *
+ *  2017-1-11 在借款事件和降担保事件中增加快金黑名单检查
+ *  2017-8-10 白骑士:特殊名单 chunyu
+ */
+class Lib_TCCredit_Event {
+
+    const REDUCE_ENSURE_AUTOPASS = 1;
+    const REDUCE_ENSURE_AUDIT = 2;
+    const REDUCE_ENSURE_REJECT = 3;
+
+    protected $user_id = 0;
+    protected $last_update_time = 30*86400;// 30 day
+    protected $last_repay_time = 30*86400;// 30 day
+    protected $user = [];
+
+    public function user_id($user_id=0){
+        $this->user_id = (int)$user_id;
+        $this->user = Model::factory('User')->get_one($this->user_id);
+        return $this;
+    }
+
+    /**
+     * 基础授信反欺诈
+     * 异步执行,命中拒绝,未命中或查询失败不拒绝。
+     */
+    public function base($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if(!$this->user){
+            return TRUE;
+        }
+
+
+        //快金:自有黑名单
+        if(Model::factory('BlackList')->check(['mobile'=>$this->user['mobile'],'identity_code'=>$this->user['identity_code']])===TRUE){
+            if((int)$this->user['status']!==(int)Model_User::STATUS_DENYFOREVER){
+                if(Model::factory('User')->update($this->user_id,['status'=>Model_User::STATUS_DENYFOREVER])){
+                    Model::factory('AntiFraud_Log')->create($this->user_id,Model_AntiFraud_Log::TYPE_TIMECASH_BLACKLIST,Model_AntiFraud_Log::RESULT_UNPASS,$this->user['status'],Model_User::STATUS_DENYFOREVER,'命中快金黑名单');
+                }
+            }
+            return FALSE;
+        }
+
+
+        //快金:电话本命中M2 (IOS/ANDROID)
+        $result=Lib::factory('TCCredit_MobileAudit')->user_id($this->user_id)->module('phone_book_m2')->review(Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            return FALSE;
+        }
+        if(in_array($result,[Model_AntiFraud::INIT])){
+            Model::factory('User')->update($this->user_id,['status'=>Model_User::STATUS_DENYTEMP]);
+            return FALSE;
+        }
+
+
+
+        //快金:通话记录命中M2 (ANDROID)
+        $result=Lib::factory('TCCredit_MobileAudit')->user_id($this->user_id)->module('call_history_m2')->review(Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            return FALSE;
+        }
+
+        //白骑士:特殊名单
+//        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiQiShi','BlackList')->review(0,0,Model_User::STATUS_DENYFOREVER);
+/*  只跑数据不做决策
+ *         if(in_array($result, [Model_AntiFraud::UNPASS])){
+            Model::factory("BlackList")->add_with_check([
+                'user_id'   => $this->user_id,
+                'source'    =>Model_BlackList::SOURCE_BAIQISHI,
+                'why'   =>'白骑士反欺诈云风险名单命中',
+                'name'  =>  isset($this->user['name']) ? $this->user['name'] : '',
+                'identity_code' => isset($this->user['identity_code'])? $this->user['identity_code'] :'',
+                'mobile'        => isset($this->user['mobile']) ?  $this->user['mobile'] : '',
+                'create_time'   => time(),
+            ]);
+            return FALSE;
+        }*/
+
+        //百融:特殊名单
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','SpecialList_c')->review(0,0,Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory("BlackList")->add_with_check([
+                'user_id'   => $this->user_id,
+                'source'    =>Model_BlackList::SOURCE_BAIRONG,
+                'why'   =>'百融反欺诈特殊名单命中',
+                'name'  =>  isset($this->user['name']) ? $this->user['name'] : '',
+                'identity_code' => isset($this->user['identity_code'])? $this->user['identity_code'] :'',
+                'mobile'    => isset($this->user['mobile']) ?  $this->user['mobile'] : '',
+                'create_time'   => time(),
+            ]);
+            return FALSE;
+        }
+
+        //百融:多次申请
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','ApplyLoan')->review(0,0,Model_User::STATUS_DENYTEMP);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            //多头借贷命中不进黑名单
+            return FALSE;
+        }
+
+        /* 增加手机实名制反欺诈验证 2016-11-18 by majin */
+        //百融:手机实名制
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','TelCheck')->review(0,0,Model_User::STATUS_DENYFOREVER,FALSE);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            //未通过手机实名认证的直接拒绝,不添加黑名单
+            return FALSE;
+        }
+
+        //同盾:特殊名单
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('TongDun','SpecialList')->review(0,0,Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory("BlackList")->add_with_check([
+                'user_id'   => $this->user_id,
+                'source'    =>Model_BlackList::SOURCE_TONGDUN,
+                'why'   =>'同盾反欺诈特殊名单命中',
+                'name'  =>  isset($this->user['name']) ? $this->user['name'] : '',
+                'identity_code' => isset($this->user['identity_code'])? $this->user['identity_code'] :'',
+                'mobile'    => isset($this->user['mobile']) ?  $this->user['mobile'] : '',
+                'create_time'   => time(),
+            ]);
+            return FALSE;
+        }
+
+        //同盾:多次申请 2017-11-30 恢复同盾多头
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('TongDun','ApplyLoan')->review(0,0,Model_User::STATUS_DENYTEMP,FALSE);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            return FALSE;
+        }
+
+        //同盾:设备反欺诈 2017-6-27 调整加入
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('TongDun','Equipment')->review(0,0,Model_User::STATUS_DENYTEMP,FALSE);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            return FALSE;
+        }
+
+
+        //百融:在网时长
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','TelPeriod')->review(0,0,Model_User::STATUS_DENYTEMP,FALSE);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            //在网时长不达标者只标记拒绝不进黑名单
+            return FALSE;
+        }
+
+        //百融:法院执行名单
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','Execution')->review(0,0,Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory("BlackList")->add_with_check([
+                'user_id'   => $this->user_id,
+                'source'    =>Model_BlackList::SOURCE_BAIRONG,
+                'why'   =>'百融反欺诈法院执行名单命中',
+                'name'  =>  isset($this->user['name']) ? $this->user['name'] : '',
+                'identity_code' => isset($this->user['identity_code'])? $this->user['identity_code'] :'',
+                'mobile'    => isset($this->user['mobile']) ?  $this->user['mobile'] : '',
+                'create_time'   => time(),
+            ]);
+            return FALSE;
+        }
+
+//        //闪蝶:
+//        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('Raptor','')->review(0,0,Model_User::STATUS_DENYFOREVER);
+//
+//        if(in_array($result,[Model_AntiFraud::UNPASS])){
+//            Model::factory("BlackList")->add_with_check([
+//                'user_id'   => $this->user_id,
+//                'source'    =>Model_BlackList::SOURCE_BAIRONG,
+//                'why'   =>'闪蝶贷款笔数',
+//                'name'  =>  isset($this->user['name']) ? $this->user['name'] : '',
+//                'identity_code' => isset($this->user['identity_code'])? $this->user['identity_code'] :'',
+//                'mobile'    => isset($this->user['mobile']) ?  $this->user['mobile'] : '',
+//                'create_time'   => time(),
+//            ]);
+//            return FALSE;
+//        }
+
+
+        return TRUE;
+    }
+
+
+    /**
+     * 借款反欺诈
+     * 同步执行,命中拒绝,失败拒绝。
+     */
+    public function loan($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+
+        //快金:自有黑名单
+        if(Model::factory('BlackList')->check(['mobile'=>$this->user['mobile'],'identity_code'=>$this->user['identity_code']])===TRUE){
+            if((int)$this->user['status']!==(int)Model_User::STATUS_DENYFOREVER){
+                if(Model::factory('User')->update($this->user_id,['status'=>Model_User::STATUS_DENYFOREVER])){
+                    Model::factory('AntiFraud_Log')->create($this->user_id,Model_AntiFraud_Log::TYPE_TIMECASH_BLACKLIST,Model_AntiFraud_Log::RESULT_UNPASS,$this->user['status'],Model_User::STATUS_DENYFOREVER,'命中快金黑名单');
+                }
+            }
+            //echo "[0]";
+            return FALSE;
+        }
+
+        //快金:联系人不在电话本中
+        $result=Lib::factory('TCCredit_MobileAudit')->user_id($this->user_id)->module('contact_not_in_phone_book')->review(NULL);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            //echo "[1]";
+            return FALSE;
+        }
+
+        //百融:特殊名单 借款事件带有紧急联系人
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','SpecialList_c_contact')->review($this->last_update_time,$this->last_repay_time,[Model_User::STATUS_DENYFOREVER,Model_User::STATUS_DENYTEMP]);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            //echo "[2]";
+            return FALSE;
+        }
+
+        /* 经讨论:借款和降担保取消多头借贷检查环节 2016-11-25 by majin
+        //百融:多次申请
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','ApplyLoan')->review($this->last_update_time,$this->last_repay_time,Model_User::STATUS_DENYTEMP);
+        if(in_array($result,[Model_AntiFraud::INIT,Model_AntiFraud::UNPASS])){
+            return FALSE;
+        }
+        */
+
+
+
+
+        /* 借款事件中增加手机实名制反欺诈验证 2016-11-25 by majin */
+        //百融:手机实名制
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','TelCheck')->review(0,0,Model_User::STATUS_DENYFOREVER,FALSE);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            //未通过手机实名认证的直接拒绝,不添加黑名单
+            return FALSE;
+        }
+
+        //百融:法院执行名单
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','Execution')->review($this->last_update_time,$this->last_repay_time,Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory("BlackList")->add_with_check([
+                'user_id'   => $this->user_id,
+                'source'    =>Model_BlackList::SOURCE_BAIRONG,
+                'why'   =>'百融反欺诈法院执行名单命中',
+                'name'  =>  isset($this->user['name']) ? $this->user['name'] : '',
+                'identity_code' => isset($this->user['identity_code'])? $this->user['identity_code'] :'',
+                'mobile'    => isset($this->user['mobile']) ?  $this->user['mobile'] : '',
+                'create_time'   => time(),
+            ]);
+            return FALSE;
+        }
+        if(in_array($result,[Model_AntiFraud::INIT])){
+            return FALSE;
+        }
+
+
+
+        return TRUE;
+    }
+
+    /** 借款反欺诈2
+     * 2017-11-30 临时方案:极速贷1个月以上需要跑同盾反欺诈   担保借款不需要
+     * @param int $user_id
+     * @return bool
+     */
+    public function loan_fast_loan($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+
+        //同盾:特殊名单 2017-11-30 调入
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('TongDun','SpecialList')->last_update_review(strtotime(date('Y-m-d').' -30 days'),Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory("BlackList")->add_with_check([
+                'user_id'   => $this->user_id,
+                'source'    =>Model_BlackList::SOURCE_TONGDUN,
+                'why'   =>'同盾反欺诈特殊名单命中',
+                'name'  =>  isset($this->user['name']) ? $this->user['name'] : '',
+                'identity_code' => isset($this->user['identity_code'])? $this->user['identity_code'] :'',
+                'mobile'    => isset($this->user['mobile']) ?  $this->user['mobile'] : '',
+                'create_time'   => time(),
+            ]);
+            if(in_array($result,[Model_AntiFraud::UNPASS])){
+                Model::factory('TCRisk_UserRecord')->exists_not_create([
+                    'user_id' => $this->user_id,
+                    'credit_code' => 'TC_FK_JSD_20171130_001',
+                    'summary' => 'user.status=4',
+                ]);
+            }
+            return FALSE;
+        }
+
+        //同盾:多次申请 2017-11-30 调入
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('TongDun','ApplyLoan')->last_update_review(strtotime(date('Y-m-d').' -30 days'),Model_User::STATUS_DENYTEMP);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory('TCRisk_UserRecord')->exists_not_create([
+                'user_id' => $this->user_id,
+                'credit_code' => 'TC_FK_JSD_20171130_001',
+                'summary' => 'user.status=5',
+            ]);
+            return FALSE;
+        }
+
+/*        //同盾:设备反欺诈 2017-11-30 调入
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('TongDun','Equipment')->last_update_review(strtotime(date('Y-m-d').' -30 days'),Model_User::STATUS_DENYTEMP);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory('TCRisk_UserRecord')->exists_not_create([
+                'user_id' => $this->user_id,
+                'credit_code' => 'TC_FK_JSD_20171130_001',
+            ]);
+            return FALSE;
+        }*/
+
+        return TRUE;
+    }
+
+
+
+    /**
+     * 降担保反欺诈
+     *  同步执行,命中拒绝,失败拒绝。
+     */
+    public function reduce_ensure($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+
+        //快金:自有黑名单
+        if(Model::factory('BlackList')->check(['mobile'=>$this->user['mobile'],'identity_code'=>$this->user['identity_code']])===TRUE){
+            if((int)$this->user['status']!==(int)Model_User::STATUS_DENYFOREVER){
+                if(Model::factory('User')->update($this->user_id,['status'=>Model_User::STATUS_DENYFOREVER])){
+                    Model::factory('AntiFraud_Log')->create($this->user_id,Model_AntiFraud_Log::TYPE_TIMECASH_BLACKLIST,Model_AntiFraud_Log::RESULT_UNPASS,$this->user['status'],Model_User::STATUS_DENYFOREVER,'命中快金黑名单');
+                }
+            }
+            return FALSE;
+        }
+
+
+        //百融:特殊名单 借款事件带有紧急联系人
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','SpecialList_c_contact')->review($this->last_update_time,$this->last_repay_time,[Model_User::STATUS_DENYFOREVER,Model_User::STATUS_DENYTEMP]);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            return FALSE;
+        }
+
+        /* 经讨论:借款和降担保取消多头借贷检查环节 2016-11-25 by majin
+        //百融:多次申请
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','ApplyLoan')->review($this->last_update_time,$this->last_repay_time,Model_User::STATUS_DENYTEMP);
+        if(in_array($result,[Model_AntiFraud::INIT,Model_AntiFraud::UNPASS])){
+            return FALSE;
+        }
+        */
+        //百融:法院执行名单
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','Execution')->review($this->last_update_time,$this->last_repay_time,Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory("BlackList")->add_with_check([
+                'user_id'   => $this->user_id,
+                'source'    =>Model_BlackList::SOURCE_BAIRONG,
+                'why'   =>'百融反欺诈法院执行名单命中',
+                'name'  =>  isset($this->user['name']) ? $this->user['name'] : '',
+                'identity_code' => isset($this->user['identity_code'])? $this->user['identity_code'] :'',
+                'mobile'    => isset($this->user['mobile']) ?  $this->user['mobile'] : '',
+                'create_time'   => time(),
+            ]);
+            return FALSE;
+        }
+        if(in_array($result,[Model_AntiFraud::INIT])){
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
+
+    /** 降担保自动审批 决策
+     * @param int $user_id
+     * @return int
+     */
+    public function reduce_ensure_policy($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        $rs = Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('BaiRong','scorepettycashv1')->get_record();
+        if($rs && isset($rs['result']) && $rs['result']>0){
+            $bairong_score = $rs['result'];
+            if((int)$bairong_score >= Model_User::REDUCE_ENSURE_BAIRONG_AUTOPASS){
+                return self::REDUCE_ENSURE_AUTOPASS;
+            }elseif((int)$bairong_score >= Model_User::REDUCE_ENSURE_BAIRONG_AUDIT){
+                return self::REDUCE_ENSURE_AUDIT;
+            }else{
+                return self::REDUCE_ENSURE_REJECT;
+            }
+        }
+
+        //没有百融分的 先看是否有西瓜历史分
+        $rong360_score_old=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScore')->get_result();
+        if($rong360_score_old===FALSE){//查询失败转人工
+            return self::REDUCE_ENSURE_AUDIT;
+        }
+        if( (int)$rong360_score_old>0 ){
+            if((int)$rong360_score_old <= Model_User::REDUCE_ENSURE_RONG360_SCORE_AUTOPASS){
+                return self::REDUCE_ENSURE_AUTOPASS;
+            }elseif((int)$rong360_score_old <= Model_User::REDUCE_ENSURE_RONG360_SCORE_AUDIT){
+                return self::REDUCE_ENSURE_AUDIT;
+            }else{
+                return self::REDUCE_ENSURE_REJECT;
+            }
+        }
+
+        $rong360_score_new=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScoreNew')->get_result();
+        if($rong360_score_new===FALSE){//查询失败转人工
+            return self::REDUCE_ENSURE_AUDIT;
+        }
+        if( (int)$rong360_score_new>0 ){
+            if((int)$rong360_score_new <= Model_User::REDUCE_ENSURE_RONG360_SCORE_AUTOPASS){
+                return self::REDUCE_ENSURE_AUTOPASS;
+            }elseif((int)$rong360_score_new <= Model_User::REDUCE_ENSURE_RONG360_SCORE_AUDIT){
+                return self::REDUCE_ENSURE_AUDIT;
+            }
+        }
+        return self::REDUCE_ENSURE_REJECT;
+
+    }
+
+
+    /**
+     * 100%担保借款 借款评分
+     */
+    public function ensure100_loan_score($user_id=0){
+
+
+        //挑战者模式
+        if($df = Model::factory('Defier_Relation')->get_one_by_user_id($this->user_id)){
+            switch($df['provider']){
+                case Model_Defier_Relation::PROVIDER_RONG360:
+                    //融360 西瓜分v21
+                    $rong360_score_v21=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScore_v21')->get_result();
+                    if((int)$rong360_score_v21>0 ){
+                        if( (int)$rong360_score_v21 >= Model_Order_EnsureLoan::PASS_SCORE_ENSURE100_RONG360_XIGUA_V21 ) {
+                            return TRUE;
+                        }
+                    }
+                    return FALSE;
+                    break;
+                case Model_Defier_Relation::PROVIDER_TCREDIT:
+                    //天创决策
+                    $tcredit_score = Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('TCredit','credit_score')->get_result();
+                    if($tcredit_score>0){
+                        if($tcredit_score >= Model_Order_EnsureLoan::PASS_SCORE_ENSURE100_TCREDIT_CREDIT_SCORE) {
+                            return TRUE;
+                        }
+                    }
+                    return FALSE;
+                    break;
+                case Model_Defier_Relation::PROVIDER_TONGDUN:
+                    $tongdun_score = Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('TongDun','credit_score')->get_result();
+                    if((int)$tongdun_score>0){
+                        if((int)$tongdun_score >= Model_Order_EnsureLoan::PASS_SCORE_ENSURE100_TONGDUN_CREDIT_SCORE) {
+                            return TRUE;
+                        }
+                    }
+
+                    return FALSE;
+                    break;
+
+                default:
+                    return FALSE;
+
+            }
+
+        }
+
+        //没有挑战者的老用户走下面
+
+        if( $user_id > Model_Order_EnsureLoan::PASS_SCORE_ENSURE100_RONG360_XIGUA_V21_USER_ID_START ){
+            //读取新西瓜分v21
+            $rong360_score_v21=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScore_v21')->get_result();
+            if((int)$rong360_score_v21>0 ){
+                if( (int)$rong360_score_v21 >= Model_Order_EnsureLoan::PASS_SCORE_ENSURE100_RONG360_XIGUA_V21){
+                    return TRUE;
+                }else{
+                    return FALSE;
+                }
+            }else{
+                return FALSE;
+            }
+        }
+
+        //更早期的用户只要通过基础授信就可以借100%担保产品
+        return TRUE;
+    }
+
+
+
+
+
+
+
+    /**
+     *  极速贷借款 评分决策
+     */
+    public function fast_loan_score($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        //挑战者模式
+        if($df = Model::factory('Defier_Relation')->get_one_by_user_id($this->user_id)){
+            switch($df['provider']){
+                case Model_Defier_Relation::PROVIDER_RONG360:
+                    //融360 西瓜分v21
+                    $rong360_score_v21=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScore_v21')->get_result();
+                    if((int)$rong360_score_v21>0 ){
+                        if( (int)$rong360_score_v21 >= Model_Order_FastLoan::PASS_SCORE_RONG360_XIGUA_V21 ) {
+                            return TRUE;
+                        }
+                    }
+                    return FALSE;
+                    break;
+                case Model_Defier_Relation::PROVIDER_TCREDIT:
+                    //天创决策
+                    $tcredit_score = Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('TCredit','credit_score')->get_result();
+                    if($tcredit_score>0){
+                        if($tcredit_score >= Model_Order_FastLoan::PASS_SCORE_TCREDIT_CREDIT_SCORE) {
+                            return TRUE;
+                        }
+                    }
+                    return FALSE;
+                    break;
+                case Model_Defier_Relation::PROVIDER_TONGDUN:
+                    $tongdun_score = Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('TongDun','credit_score')->get_result();
+                    if((int)$tongdun_score>0){
+                        if((int)$tongdun_score >= Model_Order_FastLoan::PASS_SCORE_TONGDUN_CREDIT_SCORE) {
+                            return TRUE;
+                        }
+                    }
+
+                    return FALSE;
+                    break;
+
+                default:
+                    return FALSE;
+
+            }
+
+        }
+
+        //没有挑战者绑定的老用户走下面
+
+        $rs = Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('BaiRong','scorepettycashv1')->get_record();
+        if($rs && isset($rs['result']) && $rs['result']>0){
+            $bairong_score = $rs['result'];
+            if((int)$bairong_score >= Model_Order_FastLoan::PASS_SCORE_BAIRONG){
+                return TRUE;
+            }else{
+                return FALSE;
+            }
+        }
+
+        //没有百融分的 先看西瓜历史分
+        $rong360_score_old=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScore')->get_result();
+        if((int)$rong360_score_old>0 ){
+            if( (int)$rong360_score_old <= Model_Order_FastLoan::PASS_SCORE_RONG360_XIGUA ){
+                return TRUE;
+            }else{
+                return FALSE;
+            }
+        }
+/*
+ else{
+            //没有西瓜历史分的读取 西瓜新分(更新运营商数据的最新评分)
+
+           $rong360_score_new=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScoreNew')->get_result();
+            if((int)$rong360_score_new>0 && (int)$rong360_score_new <= Model_Order_FastLoan::PASS_SCORE_RONG360_XIGUA ){
+                return TRUE;
+            }
+
+        }
+*/
+
+
+
+/* 2017-8-29
+ *         //天创决策
+        $tcredit_riskresult = Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('TCredit','RiskResult')->get_result();
+        if((int)$tcredit_riskresult>0){
+            if((int)$tcredit_riskresult == Model_Order_FastLoan::PASS_SCORE_TCREDIT_RISKRESULT){
+                return TRUE;
+            }else{
+                return FALSE;
+            }
+        }
+*/
+
+
+        //没有老西瓜分 读取新西瓜分v21
+        $rong360_score_v21=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScore_v21')->get_result();
+        if((int)$rong360_score_v21>0 ){
+            if( (int)$rong360_score_v21 >= Model_Order_FastLoan::PASS_SCORE_RONG360_XIGUA_V21 ){
+                return TRUE;
+            }else{
+                return FALSE;
+            }
+        }
+
+
+
+        return FALSE;
+
+    }
+
+
+
+
+
+
+}

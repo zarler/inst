@@ -1,0 +1,128 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 16/5/13
+ * Time: 下午7:20
+ *
+ * App 核心类
+ *
+ *  存放APP的重要变量信息
+ *
+ *
+ */
+class App
+{
+
+    const TYPE_WECHAT = 'wechat';
+    const TYPE_ANDROID = 'android';
+    const TYPE_IOS = 'ios';
+
+
+    public static $id = null;        //APP ID
+    public static $key = null;       //APP KEY
+    public static $unique_id = null;      //
+    public static $trid = null;      //APP流水号
+    public static $sign = null;      //APP签名
+    public static $ver = null;       //APP版本号
+    public static $develop_ver = null;       //测试APP版本号
+    public static $os = null;        //操作系统
+    public static $time = null;      //日期时间
+    public static $type = 'web';        // wechat android ios webserver web wap js
+    public static $token = null;        //token 原文
+    public static $ip = null;           //客户端IP
+
+    public static $session = null;      //session 对象
+    public static $_token = null;       //token 数组
+    public static $_user = null;        //用户数组
+
+
+    public static function init($array = null)
+    {
+        App::$id = isset($array['app_id']) ? strtolower($array['app_id']) : '';
+        App::$os = isset($array['os']) ? $array['os'] : '';
+        App::$ver = isset($array['ver']) ? $array['ver'] : '';
+        App::$trid = isset($array['trid']) ? $array['trid'] : '';
+        App::$develop_ver = isset($array['develop_ver']) ? $array['develop_ver'] : '';
+        App::$unique_id = isset($array['unique_id']) ? $array['unique_id'] : '';
+        App::$time = isset($array['time']) ? $array['time'] : '';
+        App::$sign = isset($array['sign']) ? $array['sign'] : '';
+
+
+        $app_config = Kohana::$config->load('auth_app')->get(App::$id);
+        if (isset($app_config['app_key']) && $app_config['app_key']) {
+            App::$key = $app_config['app_key'];
+        }
+        if (isset($app_config['app_type']) && $app_config['app_type']) {
+            App::$type = $app_config['app_type'];
+        }
+
+        switch (App::$type) {
+            case 'wechat':
+                App::$ip = isset($array['ip']) ? $array['ip'] : '';
+                break;
+            case 'android':
+            case 'ios':
+                App::$ip = isset($_SERVER['HTTP_X_FORWARDED_FOR']) && $_SERVER['HTTP_X_FORWARDED_FOR'] ? $_SERVER['HTTP_X_FORWARDED_FOR'] : (isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '');
+                break;
+        }
+
+        /*
+         * v2.4.1 TCCache优化
+               if(isset($array['token']) && $array['token'] ) {
+                    App::$token = $array['token'];
+                    App::$_token = Model::factory('Token')->get_one($array['token']);
+                    if(isset(App::$_token['id'])){
+                        App::$session = Model::factory('Token_Session')->init(App::$_token['id']);
+                    }
+
+                if(isset(App::$_token['user_id']) && App::$_token['user_id']>0 ) {
+                    App::$_user = Model::factory('User')->get_one(self::$_token['user_id']);//用户数据
+                }
+        */
+
+        if (isset($array['token']) && $array['token']) {
+            App::$token = $array['token'];
+
+            //读取判断cache
+            if (App::$_token = Lib::factory('TCCache_Token')->token(App::$token)->get()) {
+
+            } else {
+                if (App::$_token = Model::factory('Token')->get_one($array['token'])) {
+                    Lib::factory('TCCache_Token')->token(App::$token)->set(App::$_token);
+                }
+            }
+
+            if (isset(App::$_token['id'])) {
+                //读取判断cache
+                if ($app_session_array = Lib::factory('TCCache_TokenSession')->token_id(App::$_token['id'])->get()) {
+                    App::$session = Model::factory('Token_Session')->init(App::$_token['id'], $app_session_array);
+                } else {
+                    if (App::$session = Model::factory('Token_Session')->init(App::$_token['id'])) {
+                        Lib::factory('TCCache_TokenSession')->token_id(App::$_token['id'])->set(App::$session->get_array());
+                    }
+                }
+            }
+
+        }
+
+        //Lib::factory('TCCache_User')->user_id(App::$_token['user_id'])->uri('app::$_user')->set('');
+        if (isset(App::$_token['user_id']) && App::$_token['user_id'] > 0) {
+            //App::$_user = Model::factory('User')->get_one(self::$_token['user_id']);//用户数据
+            //读取判断cache
+            if (App::$_user = Lib::factory('TCCache_User')->user_id(App::$_token['user_id'])->uri('app::$_user')->get()) {
+
+            } else {
+                if (App::$_user = Model::factory('User')->get_one(self::$_token['user_id'])) {
+                    Lib::factory('TCCache_User')->user_id(App::$_token['user_id'])->uri('app::$_user')->set(App::$_user);
+                }
+            }
+        }
+
+
+    }
+
+
+}

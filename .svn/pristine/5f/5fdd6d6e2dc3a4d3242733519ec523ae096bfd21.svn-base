@@ -1,0 +1,48 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 16/5/29
+ * Time: 下午1:43
+ */
+class Model_Finance_Profile extends Model_Database{
+
+    public function get_one($user_id){
+        return DB::select()->from('finance_profile')->where('user_id','=',(int)$user_id)->order_by('id','ASC')->limit(1)->execute()->current();
+    }
+
+    /** 创建
+     * @param $array
+     * @return bool
+     */
+    public function create($user_id,$array=array()){
+        if( $user_id<1 ||$this->get_one($user_id) ){
+            return FALSE;
+        }
+        $total_loan_amount = isset($array['total_loan_amount']) ? $array['total_loan_amount'] : 0;
+        $inst_amount = isset($array['inst_amount']) ? $array['inst_amount'] : 0;
+        $create_time = time();
+
+        list($insert_id,$affected_rows)=DB::insert("finance_profile",array(
+            'user_id','total_loan_amount','inst_amount','create_time'))
+            ->values(array((int)$user_id, $total_loan_amount, $inst_amount, $create_time))
+            ->execute();
+        return $insert_id;
+    }
+
+
+    /** 更改数据
+     * @param $user_id
+     * @param array $array
+     * @return bool
+     */
+    public function update($user_id,$array=array()){
+        if(!$user_id){
+            return FALSE;
+        }
+        Lib::factory('TCCache_User')->user_id($user_id)->remove();//CACHE ----- [DELETE]
+        return NULL !== DB::update('finance_profile')->set($array)->where('user_id','=',$user_id)->execute();
+    }
+
+}

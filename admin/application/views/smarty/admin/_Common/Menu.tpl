@@ -1,0 +1,71 @@
+<nav class="site-menubar site-menubar-dark">
+ <style  type="text/css">
+     .home:before{content:"\f015"}
+     </style>
+    <div class="site-menubar-body">
+        <div class="tab-content height-full" id="booroot-navTabs">
+            <!-- 一级菜单 -->
+
+            {{if isset($_common.menu.tree) && isset($_common.menu.data) }}
+
+
+            {{foreach from=$_common.menu.tree.0  key=key item=value }}
+                <div class="tab-pane animation-fade height-full {{if (isset($parent_menu.1.id) && $parent_menu.1.id==$value.id )}}active{{/if}} "  aria-controls="{{$value.url}}" role="tabpanel">
+                    <div>
+                        <ul class="site-menu">
+
+                            <li class="site-menu-category">{{$value.name}}</li>
+                            {{if isset($_common.menu.tree[$value.id]) }}
+                              {{foreach from=$_common.menu.tree[$value.id] item=value2 key=key2}}
+                                {{if $value2 && ( $value2.pub_show==1 || in_array($value2.group_show,$_group_id) ) }}
+
+                                     <li class="site-menu-item menu-icon  menu-icon-li  {{if (isset($parent_menu.2.id) && $parent_menu.2.id==$value2.id)}} active  open {{/if}}"   >
+                                         {{if isset($_common.menu.tree[$value2.id]) }}
+                                        <a href="javascript:;">
+                                            <i class="site-menu-icon icon-fonts " aria-hidden="true"></i><span class="site-menu-title">{{$value2.name}}</span> <span class="site-menu-arrow"></span>
+                                        </a>
+                                        {{else}}
+
+                                        <a href="{{$value2.url}}">
+                                            <i class="site-menu-icon icon-fonts"   aria-hidden="true"></i><span class="site-menu-title">{{$value2.name}}</span>
+
+                                        </a>
+
+                                        {{/if}}
+
+                                        {{if isset($_common.menu.tree[$value2.id]) }}
+                                        <ul class="site-menu-sub">
+                                            <!-- 四级菜单 -->
+                                            {{foreach from=$_common.menu.tree[$value2.id] item=value3 key=key3}}
+                                               {{if $value3 && ( $value3.pub_show==1 || in_array($value3.group_show,$_group_id) ) }}
+                                                    <li class="site-menu-item {{if ( isset($parent_menu.3.id) && $parent_menu.3.id==$value3.id )}}active{{/if}}">
+
+
+                                                        <a href="{{if isset($value3['url'])}}{{$value3['url']}}{{else}}javascript:;{{/if}}">
+
+                                                            <span class="site-menu-title">{{$value3.name}}</span></a>
+
+                                                    </li>
+                                                {{/if}}
+                                             {{/foreach}}
+                                         </ul>
+                                       {{/if}}
+
+
+                                     </li>
+
+
+                                 {{/if}}
+                               {{/foreach}}
+                            {{/if}}
+
+                        </ul>
+                    </div>
+                </div>
+
+            {{/foreach}}
+            {{/if}}
+
+        </div>
+    </div>
+</nav>

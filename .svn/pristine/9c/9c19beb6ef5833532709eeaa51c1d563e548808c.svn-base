@@ -1,0 +1,39 @@
+<?php include Kohana::find_file('views', 'v1/public/head');?>
+<script src="/static/js/inst.app.js"></script>
+<script>
+    seajs.config({
+        vars: {
+            seajsVer:'<?php echo isset($_VArray['seajsVer'])?$_VArray['seajsVer']:0;?>',
+        }
+    });
+    seajs.use('js/seajs/homepage');
+    var $AppInst = new $.AppInst();
+</script>
+
+
+
+<section class="t-login-nav">
+    <div class="t-login-nav-1">
+        <?php echo isset($_VArray['title'])?$_VArray['title']:'';?>
+    </div>
+</section>
+<div class="t-top-vacancy"></div>
+<section class="t-notice">
+    <p>【公告】银行系统升级公告<a class="return_r" href="javascript:;"></a></p>
+</section>
+<section class="t-homepage">
+    <div class="d1">最高借款（元）</div>
+    <div class="d2">￥100,000</div>
+    <div class="d1">总额度 ￥6,000</div>
+    <a class="d3" href='javascript:$AppInst.WebJump({"type":"web_within", "par":"http://test.app.inst.timecash.cn/v/Check/Index"});'>立即授权</a>
+    <br>
+    <a class="d3" href='javascript:$AppInst.WebJump({"type":"appJump", "par":"app://app.timecash/Login/Index"});'>进入登录页面</a>
+
+    <!--    <a class="d3" href='javascript:$AppInst.WebJump({"type":"web_within", "par":"http://www.baidu.com"});'>立即授权</a>-->
+</section>
+
+
+
+
+</body>
+</html>

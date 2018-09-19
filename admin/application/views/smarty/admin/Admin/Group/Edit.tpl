@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html class="no-js css-menubar" lang="zh-cn">
+<head>
+
+    {{include '../../_Common/Header.tpl'}}
+    <style type="text/css">
+        .radio-custom label{margin-right:30px;}
+    </style>
+</head>
+
+<body>
+{{include '../../_Common/Top.tpl'}}
+
+<main class="site-page">
+
+    <div class="page-container" id="admui-pageContent">
+
+        <div class="page animation-fade page-tables">
+            <div class="page-header">
+                <h1 class="page-title">管理员组</h1>
+            </div>
+            <div class="page-content">
+
+                <div class="panel">
+                    <div class="panel-body">
+
+
+                        <div class="example-wrap">
+                            {{include './_Tab.tpl'}}
+                            <div class="example">
+
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        {{include '../../_Common/Form_Message.tpl'}}
+                                        <form role="form" method="post">
+                                            <div class="form-group form-material row  ">
+                                                <label for="name" class="text-danger">名称<small>(*)</small></label>
+
+                                                <input class="form-control" id="name" name="name" placeholder="必填项"  value="{{$data.name}}">
+                                            </div>
+                                            <div class="form-group  row  ">
+                                                <label for="description" >备注</label>
+                                                <textarea id="description" name="description" rows="5" class="form-control">{{$data.description}}</textarea>
+                                            </div>
+                                            <div class="form-group  row  ">
+                                                <div class="panel-heading">
+                                                    <div class="alert alert-danger alert-dismissible" role="alert">
+                                                        <button type="button" class="close" data-dismiss="alert" aria-label="关闭"> <span aria-hidden="true"></span> </button>权限设置
+                                                     </div>
+                                                </div>
+
+
+
+                                                <div class="panel-body">
+                                                    {{if isset($permission_group)}}
+                                                    {{foreach from=$permission_group item=value key=key}}
+                                                    <h3>{{$value.name}}</h3>
+                                                    <div class="table-responsive">
+                                                        <table class="table table-bordered table-striped table-hover">
+                                                            <thead>
+                                                            <tr>
+                                                                <th>权限</th>
+                                                                <th>
+                                                                    <small>开启/关闭</small>
+                                                                </th>
+                                                                
+                                                            </tr>
+                                                            </thead>
+                                                            {{if isset($group_permission_array[$value.id])}}
+                                                            <tbody>
+                                                            {{foreach from=$group_permission_array[$value.id] item=value2 key=key2}}
+                                                            <tr>
+                                                                <th>{{$value2.name}}</th>
+                                                                <td> 
+ 
+                                                                    <input type="radio"  class="form-group switch" name="permission_item[{{$value2.controller}}][{{$value2.action}}]" id="permission_item[{{$value2.controller}}][{{$value2.action}}]-1" value="{{$data.id}}"  data-radio-all-off="true"  {{if isset($data.permission[$value2.controller][$value2.action])}}checked{{/if}} /> 
+
+                                                                </td>
+                                                                
+                                                            </tr>
+                                                            {{/foreach}}
+                                                            </tbody>
+                                                            {{/if}}
+                                                        </table>
+                                                    </div>
+                                                    {{/foreach}}
+                                                    {{/if}}
+
+                                                </div>
+                                                <!-- /.panel-body -->
+                                            </div>
+                                            <button type="submit" class="btn btn-primary" name="submit" value="保存">保存</button>
+                                            <button type="reset" class="btn btn-default">重置</button>
+                                        </form>
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="page-loading vertical-align text-center">
+        <div class="page-loader loader-default loader vertical-align-middle" data-type="default"></div>
+    </div>
+
+</main> 
+<link rel="stylesheet" href="{{$ui_url}}/vendor/bootstrap-switch/dist/css/bootstrap3/bootstrap-switch.css">
+<script src="{{$ui_url}}/vendor/bootstrap-switch/dist/js/bootstrap-switch.js"></script>value
+<script type="text/javascript">
+    $(function(){
+         $(".switch").bootstrapSwitch({
+            onText:"已开启",  
+            offText:"已关闭",
+            onColor:"success",  
+            offColor:"info",   
+            size:"small", 
+            onSwitchChange:function(event,state){  
+                if(state==true){  
+                    $(this).val(1);  
+                }else{  
+                    $(this).val(0);  
+                }  
+            }  
+       });
+    });
+</script>>
+{{include '../../_Common/Footer.tpl'}}
+</body>
+</html>
+
+ 

@@ -1,0 +1,37 @@
+<?php defined('SYSPATH') or die('No direct script access.');
+//入口 触发主体
+
+/*
+ * 活动页面
+ *  * Tool::factory('Debug')->D($this->controller);
+ * Tool::factory('Dir')->dir_path(self::$config['security_path']).$result[0]['uri']);
+ * Tool::factory('Debug')->array2file(array(1,2,3,4,5), APPPATH.'../static/liu_test.php');
+ *
+ *
+ * */
+
+class Controller_Ver1_H5_APP_HomePage extends Common {
+
+    protected $_header_data = NULL;
+    public function before(){
+        parent::before();
+    }
+
+	public function action_Index()
+	{
+
+//        parse_str($_SERVER['HTTP_APP_INFO'], $this->_header_data);
+//        Tool::factory('Debug')->D(array($this->_header_data['token'],$this->_header_data,$_SERVER));
+
+
+
+
+        $this->Load();
+        parent::$_VArray['title'] = '首页';
+        $view = View::factory($this->_vv.'User/HomePage');
+        $view->_VArray = parent::$_VArray;
+        $this->response->body($view);
+
+	}
+
+}

@@ -1,0 +1,30 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: yangge
+ * Date: 2017/12/28
+ * Time: 下午6:03
+ */
+class Model_QianHai extends Model_Database{
+
+    const USER_QIANHAI_STATUS_INIT = 0;
+    const USER_QIANHAI_STATUS_PASS = 1;
+    const USER_QIANHAI_STATUS_REJECT = 2;
+
+    public function create($user_id,$request,$response){
+
+        list($id,$a) = DB::insert("qianhai_data",array('user_id','request_data','response_data','create_time'))->values(array($user_id,json_encode($request),json_encode($response),time()))->execute();
+        return $id;
+    }
+    public function create_short($user_id,$status){
+        list($id,$a) = DB::insert("qianhai_short",array('user_id','module','result','create_time'))->values(array($user_id,'reskPrompt',$status,time()))->execute();
+        return $id;
+    }
+
+    public function getOne($user_id){
+       return DB::select("*")->from("qianhai_short")->where('user_id','=',$user_id)->execute()->current();
+    }
+
+
+}

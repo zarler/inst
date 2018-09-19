@@ -1,0 +1,125 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 16/5/23
+ * Time: 上午1:33
+ *
+ * APP端电话本
+ *  主表 tc_app_phonebook
+ *  子表 tc_app_phonebook_item
+ */
+class Model_App_PhoneBook extends Model_Database {
+
+
+    const ITEMTYPE_TEL='tel';           //多项类型 电话
+    const ITEMTYPE_EMAIL='email';       //多项类型 邮箱
+
+    const MIN_AVAILABLE_COUNT = 30;     //电话本最小有效数,低于该值认为无效将不被保存.
+
+
+
+    /** 创建通讯录
+     * @param $user_id
+     * @param array $array
+     * @return bool
+     */
+    public function create($user_id,$array=array()){
+        if( $user_id<1 || !isset($array['tel']) || count($array['tel'])<1 ){
+            return FALSE;
+        }
+
+        $ts = Lib::factory('String');
+        $user_id = (int)$user_id;
+        $first_name = isset($array['first_name']) ? mb_substr( trim($ts->filterUTF8($array['first_name'])) , 0, 50, 'utf8') : '';
+        $middle_name = isset($array['middle_name']) ? mb_substr( trim($ts->filterUTF8($array['middle_name'])), 0, 50, 'utf8') : '';
+        $last_name = isset($array['last_name']) ? mb_substr( trim($ts->filterUTF8($array['last_name'])), 0, 50, 'utf8') : '';
+        $address = isset($array['address']) ? mb_substr( trim($ts->filterUTF8($array['address'])), 0, 50, 'utf8') : '';
+        $nick_name = isset($array['nick_name']) ? mb_substr( trim($ts->filterUTF8($array['nick_name'])), 0, 50, 'utf8') : '';
+        $company_name = isset($array['company_name']) ? mb_substr(trim($ts->filterUTF8($array['company_name'])) , 0, 50, 'utf8') : '';
+        $job_title = isset($array['job_title']) ? mb_substr( trim($ts->filterUTF8($array['job_title'])), 0, 50, 'utf8') : '';
+        $birthday = isset($array['birthday']) ? mb_substr( $array['birthday'], 0, 50, 'utf8')  : '';
+        $remark = isset($array['remark']) ? mb_substr( trim($ts->filterUTF8($array['remark'])), 0, 50, 'utf8') : '';
+        $name = isset($array['name']) ? mb_substr( trim($ts->filterUTF8($array['name'])), 0, 60, 'utf8') : '';
+
+        if(!$name){
+            $name =$last_name . $middle_name . $first_name;
+        }
+
+        $create_time = isset($array['create_time']) && $array['create_time'] ? (int)$array['create_time'] : time() ;
+
+        list($insert_id,$affected_rows)=DB::insert("app_phonebook",array('user_id','first_name','middle_name','last_name',
+        'address','nick_name','company_name','job_title','birthday','remark','name','create_time'))
+            ->values(array( $user_id, $first_name, $middle_name, $last_name,
+            $address, $nick_name, $company_name, $job_title, $birthday, $remark, $name, $create_time))
+            ->execute();
+
+        if($insert_id){
+            if(isset($array['tel']) && is_array($array['tel']) && count($array['tel'])>0){
+                foreach($array['tel'] as $tel){
+                    if(!is_array($tel) && Valid::regex($tel,'/^[\+]?[0-9][0-9\- \.\,#]{4,25}[0-9]$/') ){
+                        $mobile = Lib::factory('String')->stringToMobile($tel);
+                        list($item_id,$affected_rows)=DB::insert("app_phonebook_item",array('user_id','pbid','type','value','mobile'))
+                            ->values(array( $user_id, $insert_id, Model_APP_PhoneBook::ITEMTYPE_TEL, $tel, $mobile ))
+                            ->execute();
+                    }
+                }
+            }
+
+            if(isset($array['email']) && is_array($array['email']) && count($array['email'])>0){
+                foreach($array['email'] as $em){
+                    if(Valid::email($em)){
+                        list($item_id,$affected_rows)=DB::insert("app_phonebook_item",array('user_id','pbid','type','value'))
+                            ->values(array( $user_id, $insert_id, Model_APP_PhoneBook::ITEMTYPE_EMAIL,  mb_substr( $em, 0, 200, 'utf8') ))
+                            ->execute();
+                    }
+                }
+            }
+
+        }
+
+        return $insert_id;
+
+    }
+
+    /** 是否有记录
+     * @param $user_id
+     * @return mixed
+     */
+    public function has($user_id){
+        return DB::select()->from('app_phonebook')->where('user_id','=',(int)$user_id)->limit(1)->execute()->current();
+    }
+
+
+    /** 读取电话本记录
+     * @param $user_id
+     * @return mixed
+     */
+    public function get_by_user_id($user_id){
+        return DB::select()->from('app_phonebook_item')->where('user_id','=',(int)$user_id)->and_where('mobile','is',DB::expr('not null'))->execute()->as_array();
+    }
+
+
+    /** 读取电话本记录(只要手机号码记录)
+     * @param $user_id
+     * @return mixed
+     */
+    public function get_mobile_by_user_id($user_id){
+        return DB::select()->from('app_phonebook_item')->where('user_id','=',(int)$user_id)->and_where('mobile','is',DB::expr('not null'))->execute()->as_array();
+    }
+
+    /** 读取电话本中部分电话(用户检查是否存在某号码)
+     * @param $user_id
+     * @param array $mobile
+     * @return mixed
+     */
+    public function get_by_mobile($user_id,$mobile=[]){
+        return DB::select()->from('app_phonebook_item')->where('user_id','=',(int)$user_id)->and_where('mobile','IN',$mobile)->execute()->as_array();
+    }
+
+
+
+
+
+}

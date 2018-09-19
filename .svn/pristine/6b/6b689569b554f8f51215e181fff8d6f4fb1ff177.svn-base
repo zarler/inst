@@ -1,0 +1,88 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: wangchao
+ * Date: 2018/1/24
+ * Time: 下午8:29
+ */
+class Lib_CreditReview_TongDun extends Lib_CreditReview_RiskCommon
+
+{
+
+    protected $action;
+
+    const PROVIDER = "TongDun";
+
+    public function ApplyModel(){
+        $id_number = '';
+        $account_mobile = '';
+        $params = ['id_number' => $id_number, 'account_mobile' => $account_mobile];
+        $lib = new Lib_TONGDUN2_ApplyModel($params);
+        $result = $lib->requestPost();
+        var_dump($result);die;
+
+        echo json_encode(['status' => true, 'msg' => '发送成功', 'code' => '0000', 'api_result' => ['result' => $result, 'msg' => '请求成功']]);
+    }
+
+    public function RiskService(){
+        $result = Lib::factory("Risk_API")->anti('TongDun')->query(
+            'execute', [
+                'user_id' => $this->user_id ? $this->user_id : '',
+                "account_name" => $this->user['username'] ? $this->user['username'] : '',
+                "account_mobile" => $this->user['mobile'] ? $this->user['mobile'] : '',
+                "id_number" => $this->user['identity_code'] ? $this->user['identity_code'] : '',
+                "contact1_mobile" => "",
+                "contact2_mobile" => "",
+                "event_type" => "ANDROID",
+                "black_box" =>"eyJvcyI6ImFuZHJvaWQiLCJ2ZXJzaW9uIjoiMy4wLjQiLCJwYWNrYWdlcyI6ImNvbS55aC50aW1lY2FzaF8yLjEuMSIsInByb2ZpbGVfdGltZSI6MjgzLCJpbnRlcnZhbF90aW1lIjo4Mjg4NjEsInRva2VuX2lkIjoiQW5kcm9pZDE1YWRiNjIyOTQ3LTNkZGE1Y2IzOTlhMDUyMjZlMjE4YjYxMmVkOWIzNTRiIn0=",
+            ]
+        )->execute()->asJson();
+    }
+
+    //第一步远程请求
+    public function getData($action)
+    {
+        if ($action) {
+
+            call_user_func_array('self::'.$action, ['data' => []]);
+        } else {
+            $this->response(false, [], Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, '缺少参数 action');
+        }
+
+        return $this;
+    }
+
+    //第二步 获取数据并发送
+
+    public function sendData($action)
+    {
+        $Original = Model::factory("Moxie_Report")->get_report($this->user_id, $action, 1);
+        $Report = Model::factory("Moxie_Report")->get_report($this->user_id, $action, 2);
+
+        if (isset($Original['data']) && isset($Report['data'])) {
+            $data = [
+                'data' => [
+                    'Original' => $Original['data'],
+                    'Report' => $Report['data'],
+                ],
+                'provider' => self::PROVIDER,
+                'action' => $action,
+            ];
+        }
+
+        $this->send($data, self::PROVIDER, $action);
+
+        return $this;
+    }
+
+    //第三步 获取决策
+
+    public function getDecision($action)
+    {
+        $this->get(self::PROVIDER, $action);
+
+        return $this;
+    }
+
+
+}

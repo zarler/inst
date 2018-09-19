@@ -1,0 +1,142 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: yangge
+ * Date: 2017/7/31
+ * Time: 上午10:11
+ */
+class Lib_SMS_API_MengXin{
+
+    public static $status = array(
+        '0' => "成功",
+        '101' => '无此用户',
+        '102' => '密码错误',
+        '103' => '提交过快',
+        '104' => '系统忙',
+        '105' => '敏感短信',
+        '106' => '消息长度错',
+        '107' => '包含错误的手机号码',
+        '108' => '手机号码个数错',
+        '109' => '无发送额度',
+        '110' => '不在发送时间内',
+        '111' => '超出该账户当月发送额度限制',
+        '112' => '无此产品，用户没有订购该产品',
+        '113' => 'extno格式错',
+        '115' => '自动审核驳回',
+        '116' => '签名不合法，未带签名',
+        '117' => 'IP地址认证错,请求调用的IP地址不是系统登记的IP地址',
+        '118' => '用户没有相应的发送权限',
+        '119' => '用户已过期',
+        '120' => '内容不在白名单模板中',
+        '121' => '相同内容短信超限'
+    );
+
+    private static $user_id;
+    private static $user;
+    private static $password;
+    //发送短信地址
+    private static $send_url;
+
+    ////查询短信剩余条数地址
+    private static $status_url;
+
+    function __construct () {
+        $config = Kohana::$config->load('api')->get('mengxin');
+        self::$password = $config['password'];
+        self::$send_url = $config['send_url'];
+        self::$status_url = $config['status_url'];
+    }
+
+    public function chose($type){
+        $config = Kohana::$config->load('api')->get('mengxin');
+        $info = $config[$type];
+        self::$user_id = $info['user_id'];
+        self::$user = $info['user'];
+        return $this;
+    }
+
+    public function sendSMS($data,$date = ""){
+        $log = new MyLog(DOCROOT.'protected/logs');
+        $times = date("Y").date("m").date("d").date("H").date("i").date("s");
+        $request = array(
+            'userid' => self::$user_id,
+            'timestamp' => $times,
+            'sign' => md5(self::$user.self::$password.$times),
+            'mobile' => $data['mobile'],
+            'content' => $data['content'],
+            'sendTime' => $date,
+            'action' => 'send',
+            'extro' => ''
+        );
+        //随机ID
+        $id = uniqid(Text::random('alnum',8));
+        //IP地址
+        $ip = Request::$client_ip;
+        $log->write(array(array('body'=>json_encode($data),'time'=>time())),"time [{$id}] - IP:{$ip} --- SMS REQUEST: \r\nbody \r\n");
+        $response = self::postData(self::$send_url,$request);
+        if(is_array($response)){
+            $log->write(array(array('body'=>json_encode($response),'time'=>time())),"time [{$id}] --- SMS RESPONSE: \r\nbody\r\n");
+            return json_encode($response);
+        }else{
+            $result_array = json_decode(json_encode(simplexml_load_string($response)), TRUE);
+            $log->write(array(array('body'=>json_encode($result_array),'time'=>time())),"time [{$id}] --- SMS RESPONSE: \r\nbody\r\n");
+            return json_encode($result_array);
+        }
+
+        //记录返回信息
+
+    }
+    public function getStatus(){
+        $times = date("Y").date("m").date("d").date("H").date("i").date("s");
+        $request = array(
+            'userid' => self::$user_id,
+            'timestamp' => $times,
+            'sign' => md5(self::$user.self::$password.$times),
+            'action' => 'overage',
+        );
+        //随机ID
+        $id = uniqid(Text::random('alnum',8));
+        //IP地址
+        $ip = Request::$client_ip;
+        $response = self::postData(self::$send_url,$request);
+        if(is_array($response)){
+            return json_encode($response);
+        }else{
+            $result_array = json_decode(json_encode(simplexml_load_string($response)), TRUE);
+            return json_encode($result_array);
+        }
+    }
+
+    /**
+     * 发送请求到接口
+     * @param string $url
+     * @param array $data = array(mobile,content)
+     * @return mixed
+     */
+    private static function postData($url,$data = null){
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+
+        curl_setopt($ch, CURLOPT_HTTP_VERSION  , CURL_HTTP_VERSION_1_0 );
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+        curl_setopt($ch, CURLOPT_HEADER, FALSE);
+
+        curl_setopt($ch, CURLOPT_HTTPAUTH , CURLAUTH_BASIC);
+
+        curl_setopt($ch, CURLOPT_POST, TRUE);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+
+        $res = curl_exec( $ch );
+
+        if (curl_errno($ch)) {
+            $data['error'] = "-999";
+            $data['msg'] = curl_error($ch);
+            $res = $data;
+        }
+        curl_close( $ch );
+        return $res;
+    }
+
+}

@@ -1,0 +1,20 @@
+<?php
+/**
+ * Created by IntelliJ IDEA.
+ * User: yangyeuxin
+ * Date: 2018/1/16
+ * Time: 下午5:24
+ */
+class Model_Jinrong91_Short extends Model_Database
+{
+    public function createShort($user_id, $status)
+    {
+        list($id, $a) = DB::insert("jinrong91_short", array('user_id', 'module', 'result', 'create_time'))->values(array($user_id, 'reskPrompt', $status, time()))->execute();
+        return $id;
+    }
+
+    public function getShortOne($user_id)
+    {
+        return DB::select("*")->from("jinrong91_short")->where('user_id', '=', $user_id)->execute()->current();
+    }
+}

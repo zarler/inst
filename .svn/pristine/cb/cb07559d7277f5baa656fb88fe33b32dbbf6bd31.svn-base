@@ -1,0 +1,61 @@
+<?php include Kohana::find_file('views', 'v1/public/head');?>
+<script>
+    seajs.config({
+        vars: {
+            seajsVer:'<?php echo isset($_VArray['seajsVer'])?$_VArray['seajsVer']:0;?>',
+        }
+    });
+    seajs.use('js/seajs/check');
+</script>
+
+<section class="t-login-nav">
+    <div class="t-login-nav-1">
+        <a class="return_i i_public" href="javascript:history.go(-1);"></a><?php echo isset($_VArray['title'])?$_VArray['title']:'';?>
+    </div>
+</section>
+<div class="t-top-vacancy"></div>
+
+
+<section class="t-check-1">
+    <p class="">借款人：王小明</p>
+    <p class="">身份证号：324859********0035</p>
+</section>
+
+<section class="t-check-1 t-margintop-5">
+    <p class="">借款金额：5000.00</p>
+    <p class="">借款总额：6个月</p>
+    <p class=""><label>应还总额：5900.00</label></p>
+    <p class=""><label>总利息：900.00</label></p>
+    <p class=""><label>每月应还：983.33</label></p>
+</section>
+
+
+<section class="t-check-1 t-margintop-5">
+    <p class=""><label>截止时间：2018/01/09-2018/01/09</label></p>
+    <p class=""><label>首次还款日：2018/01/09</label></p>
+    <p class=""><label>还款日：每日25日</label></p>
+</section>
+
+<section class="t-check-1 t-margintop-5">
+    <p class="">借款用途：个人日常消费</p>
+    <p class="">收款银行卡：中信银行（5528）</p>
+    <p class="">还款银行卡：中信银行（5528）</p>
+</section>
+
+<section class="t-check-1 t-margintop-5">
+    <p class="">1.请于还款日之前确保还款卡内余额充足</p>
+    <p class="">2.请于还款日之前确保还款卡内余额充足范德萨范德萨发</p>
+    <p class="">3.请于还款日之前确保还款卡内余额充足范德萨范德萨发，冯绍峰的爽肤水发师傅师傅</p>
+</section>
+
+<section class="contractabroad">
+    本人已经阅读并同意 &nbsp;&nbsp;
+    <a href="">《合同1》</a>
+    <a href="">《合同2》</a>
+</section>
+
+
+<button class="submitButton" onclick="layerPhone.BombBox('水电费的说法');layerPhone.changeCssBombBox()">确定</button>
+
+</body>
+</html>

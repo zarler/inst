@@ -1,0 +1,48 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * Permission: wangxuesong
+ * Date: 16/5/28
+ * Time: 下午4:17
+ * 主要用于修改用户的基本信息 和审核信息
+ */
+
+class Model_User_AuditNotes extends Model_Database {
+
+
+
+
+
+    //获取用户审批备注修改记录
+    public function get_list($user_id){
+
+
+        $rs = DB::select("content",'admin_id',"create_time",'step')->from('user_audit_notes')->and_where('user_id','=',$user_id)->execute()->as_array();
+        foreach ($rs as $key=>$value){
+            $admin = Model::factory('Admin_User')->get_one($value['admin_id']);
+            $rs[$key]['admin_name']=$admin['name'];
+            $rs[$key]['create_time'] = date("Y-m-d H:i:s",$value["create_time"]);
+        }
+        return $rs;
+    }
+
+    //更新用户修改资料
+    public  function  addNotes($array=[]){
+
+        //新增审核信息添加阶段【1:贷前 2:贷后 3:贷中】
+        $array['step'] =!empty($array['step'])?$array['step']:1;
+
+        $field_arr = array('admin_id', 'user_id', 'create_time','content','step');
+        $data_arr = array($array['admin_id'], $array['user_id'],  time(),$array['content'],$array['step']);
+        list($insert_id, $affected_rows) = DB::insert("user_audit_notes", $field_arr)->values($data_arr)->execute();
+        if ($affected_rows == 1) {
+            return $affected_rows;
+        } else {
+           return false;
+        }
+    }
+
+
+
+}

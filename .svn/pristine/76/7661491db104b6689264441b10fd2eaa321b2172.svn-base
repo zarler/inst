@@ -1,0 +1,178 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * Permission: wangxuesong
+ * Date: 16/1/5
+ * Time: 下午4:17
+ *
+ * 2016-1-13 by majin
+ *  因产品人员认为,照片审批项不需要提额审批,从提额审批模型中迁出.
+ *
+ * 2016-7-31 by isNum
+ *  增加 rule 修正list 及 total 方法 增加 网纹对比状态
+ *
+ */
+
+class Model_User_FaceIDAuth extends Model_Database {
+
+	const STATUS_VERIFIED = 1;		//已验证
+	const STATUS_FAILED= 2;			//验证失败
+	const STATUS_READY = 3;			//待审核
+	const STATUS_CHECKING = 4;		//审核中
+
+	public $status_array = array(
+			self::STATUS_VERIFIED =>'通过',
+			self::STATUS_FAILED =>'未通过',
+			self::STATUS_READY => '待审',
+			self::STATUS_CHECKING => '审核中',
+	);
+
+	const STATUS_IDENTITYFACE_AUTH_SUCCESS = 1;					//通过
+	const STATUS_IDENTITYFACE_AUTH_FAIL = 2;					//未通过
+	const STATUS_IDENTITYFACE_AUTH_INIT = 3;					//未对比
+
+
+	public $identity_status_array = array(
+			self::STATUS_IDENTITYFACE_AUTH_INIT => '未对比',					//未对比
+			self::STATUS_IDENTITYFACE_AUTH_SUCCESS => '通过',
+			self::STATUS_IDENTITYFACE_AUTH_FAIL    => '未通过',
+	);
+
+
+	public $_join_rule = array(
+			'user'=>array(
+					'type'=>'LEFT',
+					'on'=>array('{main}.user_id','=','user.id'),
+					'column'=> array(
+							array('user.mobile','mobile'),
+							array('user.id','user_id'),
+							array('user.name','name'),
+							array('user.identity_code','identity_code'),
+							array('user.validated_identity','validated'),
+					),
+			),
+	);
+
+
+	//状态名
+	public function getStatusName($status_key=0){
+		return isset($this->status_array[$status_key]) ? $this->status_array[$status_key] : NULL;
+	}
+
+	//单条数据
+	public function getOne($id) {
+		return DB::select()->from('user_faceidauth')->where('id','=',$id)->execute()->current();
+	}
+
+	//单条数据
+	public function getOneByUserId($user_id=0,$status=NULL) {
+		return DB::select()->from('user_faceidauth')->where('user_id','=',$user_id)->and_where('status','=',($status!==NULL ? $status : self::STATUS_VERIFIED ) )->execute()->current();
+	}
+
+	//构造查询条件
+	private function queryBuilder($query, $array=array()) {
+
+        if(isset($array['status'])){
+            $query->where('user_faceidauth.status','=',intval($array['status']));
+        }
+
+		if(isset($array['identity_status']) && $array['identity_status'] ){
+			$query->where('user_faceidauth.identity_status','=',$array['identity_status']);
+		}
+
+		if(isset($array['admin_show'])){
+			$query->where('user_faceidauth.admin_show','=',intval($array['admin_show']));
+		}
+        if(!empty($array['Photocopym']) || !empty($array['min_Screen'])|| !empty($array['max_Screen'])){
+            $query->join('user_faceid_data')->on('user_faceid_data.user_id','=','user_faceidauth.user_id');
+        }
+        if(isset($array['Photocopym']) && $array['Photocopym']!=''){
+            $query->where('user_faceid_data.Photocopym','>=',$array['Photocopym']);
+        }
+
+        if(isset($array['min_Screen']) && $array['min_Screen']!='') {
+            $query->where('user_faceid_data.Screen','>=',$array['min_Screen']);
+        }
+
+        if(isset($array['max_Screen']) && $array['max_Screen']!='') {
+            $query->where('user_faceid_data.Screen','<=',$array['max_Screen']);
+        }
+
+		if(isset($array['identity_code'])){
+			$query->where('user.identity_code','=',trim($array['identity_code']));
+		}
+
+		if(isset($array['name']) && $array['name']!='') {
+			$query->where('user.name','=',$array['name']);
+		}
+
+		if(isset($array['mobile']) && $array['mobile']!="") {
+			$query->where('user.mobile','=',$array['mobile']);
+		}
+
+		if(isset($array['username']) && $array['username']!='') {
+			$query->where('user.username','=',$array['username']);
+		}
+
+		if(isset($array['email']) && $array['email']!="") {
+			$query->where('user.email','=',$array['email']);
+		}
+
+		return $query;
+	}
+
+	//查询分页
+	public function getList($array=array(),$perpage=20,$page=1) {
+		$join = Lib::factory('DBJoin')->main_table('user_faceidauth')->set('user_faceidauth',$this->_join_rule);
+		$query = DB::select_array($join->join_field(array('user')))->from('user_faceidauth');
+		$query = $join->join_distinct($query,array('user','user_faceid_data'));
+        if(empty($array['Photocopym']) && empty($array['min_Screen'])&& empty($array['max_Screen'])) {
+            $query->where('user.validated_identity', '=', Model_User_Identity::STATUS_VERIFIED);
+        }
+		if(count($array)>0) {
+			$query = $this->queryBuilder($query,$array);
+		}
+		if($page<1) {
+			$page=1;
+		}
+        $query->order_by('user_faceidauth.id','DESC')->offset($perpage*($page-1))->limit($perpage);
+		//echo $query->__tostring();
+		$rs=$query->execute()->as_array();
+		return $rs;
+	}
+
+
+	//查询统计
+	public function getTotal($array=array()) {
+
+		$query=DB::select(array(DB::expr('COUNT(*)'), 'total'))->from('user_faceidauth');
+		$query = Lib::factory('DBJoin')->set('user_faceidauth',$this->_join_rule)->join_distinct($query,array('user'));
+        if(empty($array['Photocopym']) && empty($array['min_Screen'])&& empty($array['max_Screen'])) {
+            $query->where('user.validated_identity', '=', Model_User_Identity::STATUS_VERIFIED);
+        }
+		if(count($array)>0) {
+			$query = $this->queryBuilder($query,$array);
+		}
+		$rs=$query->execute()->current();
+		return isset($rs['total']) ? $rs['total'] : 0 ;
+	}
+
+    /**
+     *
+     *  更新faceId状态
+     * @param $userId
+     * @param $map
+     * @return bool|object
+     */
+
+    public  function  update($userId,$map){
+        if(empty($userId)) {
+            return false;
+        }
+        DB::update('user_faceidauth')->set($map)->where('user_id','=',$userId)->execute();
+
+    }
+
+
+}

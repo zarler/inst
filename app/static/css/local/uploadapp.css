@@ -1,0 +1,86 @@
+@charset "utf-8";
+body, button, input, select, textarea {
+    font: 14px/1.5 \5FAE\8F6F\96C5\9ED1, tahoma, arial, 'Hiragino Sans GB', \5b8b\4f53, sans-serif;
+	background: white;
+}
+p{
+margin:0.6em 0;        
+}
+html {
+    margin: 0 auto;
+    padding: 0;
+       font-family: "宋体",\5FAE\8F6F\96C5\9ED1, Arial, Helvetica, sans-serif;
+    font-size: 14px;
+    min-width: 320px;
+    overflow-y: auto;
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: none;
+    max-width: 640px;
+}
+img { border: none; }
+.turntable-banner{
+	padding-top:30px;
+	width:100%;
+}
+.turntable-1{
+	text-align:center;
+}
+.upload_app img{
+	margin-top: 20px;
+	width:50%;
+}
+.top_font {
+    position: Relative;
+    bottom: 73px;
+}
+.top_font .p1{
+	letter-spacing: 5px;
+	font-size:1.6rem;
+	color:#696969;
+}
+.top_font .p2{
+	font-size:1.2rem;
+	color:#ff7200;
+}
+.top_include{
+	height:234px;
+}
+
+.dw_zl_android{
+
+    background: url(../images/promotion/1_03.png) repeat-y;
+	background-size:100% 90%;
+	background-repeat:no-repeat;
+	width:69%;
+	line-height:5.1rem;
+	margin:5px auto 0 auto;
+}
+.dw_zl_android span{
+	font-size:1.4rem;
+	margin-left:3.2rem;
+	color:red;
+	width:50%;
+}
+.dw_zl_ios {
+    background: url(../images/promotion/2_15.png) repeat-y;
+	background-size:100% 90%;
+	background-repeat:no-repeat;
+	width:69%;
+	line-height:5.1rem;
+	margin:10px auto 10px auto;
+}
+.dw_zl_ios .span1{
+	font-size:1.4rem;
+	margin-left:30px;
+	color:red;
+	width:50%;
+}
+.dw_zl_ios .span2{
+display:block;
+	font-size:0.8rem;
+	margin-left:20px;
+	color:gray;
+	line-height:0rem;
+	position: Relative;
+    bottom: 19px;
+}

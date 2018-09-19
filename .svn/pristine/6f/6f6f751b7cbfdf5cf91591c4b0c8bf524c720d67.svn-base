@@ -1,0 +1,35 @@
+.page-locked:before {
+    background-image: url(../images/lockscreen.jpg)
+}
+
+.page-locked .avatar {
+    margin-bottom: 0px
+}
+
+.page-locked .avatar.avatar-lg {
+    width: 160px;
+    height: 160px
+}
+
+.page-locked .locked-user {
+    margin-bottom: 20px;
+    color: #fff
+}
+
+.page-locked form {
+    width: 300px;
+    margin: 22px auto
+}
+
+body form .input-group .form-control,body .input-group-btn:last-child>.btn {
+    height: 42px;
+}
+
+.btn{padding:9px 12px;}
+.sub{width: 300px;height: 40px;}
+.error{
+    text-align: left; padding: 10px; min-width: 120px; color: #FFF;  border-radius: 5px; font-weight: bold;
+    width: 255px;
+    text-align: left; position: absolute; left: 302px; top: 0px; z-index: 999;
+
+}

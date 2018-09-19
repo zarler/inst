@@ -1,0 +1,18 @@
+<?php defined('SYSPATH') or die('No direct script access.');
+
+/**
+ * 引入composer安装的组件,目录位于framework/kohana-v3.3.6/vendor/
+ */
+use Symfony\Component\Filesystem\Filesystem as Filesystem;
+
+class Controller_Demo extends Controller {
+
+	public function action_Index()
+	{
+        $model = Model::factory("Demo");
+        // var_dump($model);exit;
+        $fs = new Filesystem();
+        // $fs->mkdir('/code/'.mt_rand());
+	}
+
+} // End Welcome

@@ -1,0 +1,149 @@
+<?php
+/* Smarty version 3.1.29-dev/5, created on 2016-03-11 09:38:50
+  from "/alidata1/www/timecash/ps/application/views/smarty/admin/Index.tpl" */
+
+if ($_smarty_tpl->smarty->ext->_validateCompiled->decodeProperties($_smarty_tpl, array (
+  'has_nocache_code' => false,
+  'version' => '3.1.29-dev/5',
+  'unifunc' => 'content_56e221aaac29d8_88292010',
+  'file_dependency' => 
+  array (
+    '4ef8e493deb850c928938f2c46522a31d1929ce5' => 
+    array (
+      0 => '/alidata1/www/timecash/ps/application/views/smarty/admin/Index.tpl',
+      1 => 1457522202,
+      2 => 'file',
+    ),
+  ),
+  'includes' => 
+  array (
+  ),
+),false)) {
+function content_56e221aaac29d8_88292010 ($_smarty_tpl) {
+?>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <title>文件上传demo</title>
+    <!-- Bootstrap Core CSS -->
+    <link href="<?php echo $_smarty_tpl->tpl_vars['ui_url']->value;?>
+/bower_components/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="<?php echo $_smarty_tpl->tpl_vars['ui_url']->value;?>
+/dist/css/sb-admin-2.css" rel="stylesheet">
+</head>
+<body>
+<div class="container">
+    <div class="row">
+        <div class="col-md-4 col-md-offset-4">
+            <div class="login-panel panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">文件上传</h3>
+                </div>
+                <div class="panel-body">
+                    <form action="/<?php echo $_smarty_tpl->tpl_vars['_controller']->value;?>
+/Save" method="post" enctype="multipart/form-data">
+                        <fieldset>
+                           <!--<div ><span style="width: 150px;margin-left: 5px" ></span><input type="text" id="client_id" name="client_id"/></div>-->
+                            <!-- Change this to a button or input when using this as a form -->
+                            <div style="width: 100%;height:20px;clear: both">
+
+                                <input style="display: block" type="file" name="upfile" id="file" />
+                                <input style="float: right;" type="submit" name="submit" value="上传文件" />
+                            </div>
+
+                        </fieldset>
+                    </form>
+                    <br />
+                    <br />
+                        <fieldset>
+                            <div><span style="width: 150px;margin-bottom: 5px;margin-left: 45px">id值:</span><input type="text" id="id" name="id"/></div>
+                            <br>
+                            <div><span style="width: 150px;margin-bottom: 5px;margin-left: 25px">hash值:</span><input type="text" id="hash" name="hash"/></div>
+                            <br>
+                            <Button style="float: right;" id="buttonJson">Json获取文件</Button>
+                            <Button style="float: right;margin-right: 5px" id="buttonGet">get获取文件</Button>
+                        </fieldset>
+                    </form>
+                </div>
+            </div>
+            <div class="login-panel panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">文件列表</h3>
+                </div>
+                <div class="panel-body">
+                    <?php
+$_from = $_smarty_tpl->tpl_vars['_data']->value;
+if (!is_array($_from) && !is_object($_from)) {
+settype($_from, 'array');
+}
+$__foreach_value_0_saved_item = isset($_smarty_tpl->tpl_vars['value']) ? $_smarty_tpl->tpl_vars['value'] : false;
+$__foreach_value_0_saved_key = isset($_smarty_tpl->tpl_vars['key']) ? $_smarty_tpl->tpl_vars['key'] : false;
+$_smarty_tpl->tpl_vars['value'] = new Smarty_Variable();
+$__foreach_value_0_total = $_smarty_tpl->smarty->ext->_foreach->count($_from);
+if ($__foreach_value_0_total) {
+$_smarty_tpl->tpl_vars['key'] = new Smarty_Variable();
+foreach ($_from as $_smarty_tpl->tpl_vars['key']->value => $_smarty_tpl->tpl_vars['value']->value) {
+$__foreach_value_0_saved_local_item = $_smarty_tpl->tpl_vars['value'];
+?>
+                        <div style="width: 100%;height:20px;clear: both"> <span><?php echo $_smarty_tpl->tpl_vars['value']->value['file'];?>
+</span><a href="/<?php echo $_smarty_tpl->tpl_vars['_controller']->value;?>
+/Delete?hash=<?php echo $_smarty_tpl->tpl_vars['value']->value['hash'];?>
+" style="float: right">删除</a></div>
+                        <br>
+                    <?php
+$_smarty_tpl->tpl_vars['value'] = $__foreach_value_0_saved_local_item;
+}
+}
+if ($__foreach_value_0_saved_item) {
+$_smarty_tpl->tpl_vars['value'] = $__foreach_value_0_saved_item;
+}
+if ($__foreach_value_0_saved_key) {
+$_smarty_tpl->tpl_vars['key'] = $__foreach_value_0_saved_key;
+}
+?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php echo '<script'; ?>
+ src="<?php echo $_smarty_tpl->tpl_vars['ui_url']->value;?>
+/bower_components/jquery/dist/jquery.min.js"><?php echo '</script'; ?>
+>
+<?php echo '<script'; ?>
+>
+    $(document).ready(function () {
+        $('#buttonJson').click(function () {
+            var hash = $('#hash').val();
+            var id = $('#id').val();
+            if(!hash && !id){
+                alert('id和hash不能都为空！');
+            }else{
+                window.location.href = "/<?php echo $_smarty_tpl->tpl_vars['_controller']->value;?>
+/Json?hash="+hash+"&id="+id;
+            }
+        });
+        $('#buttonGet').click(function () {
+            var hash = $('#hash').val();
+            var id = $('#id').val();
+            if(!hash && !id){
+                alert('id和hash不能都为空！');
+            }else{
+                window.location.href = "/<?php echo $_smarty_tpl->tpl_vars['_controller']->value;?>
+/Get?hash="+hash+"&id="+id;
+            }
+        });
+    });
+
+<?php echo '</script'; ?>
+>
+</body>
+</html>
+<?php }
+}

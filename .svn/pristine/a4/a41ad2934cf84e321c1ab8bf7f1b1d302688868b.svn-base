@@ -1,0 +1,53 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: yangyuexin
+ * Date: 2017/12/28
+ * Time: 下午6:03
+ */
+class Model_Jinrong91 extends Model_Database{
+
+    const USER_JINRONG91_STATUS_INIT = 0;
+    const USER_JINRONG91_STATUS_PASS = 1;
+    const USER_JINRONG91_STATUS_REJECT = 2;
+
+    public function get_one_by_trxno($trxno){
+
+        return $query = DB::select()->from('jinrong91_data')->where('trxno','=',$trxno)->execute()->current();
+    }
+
+    public function insert($array){
+        foreach ($array as $k=>$v){
+            $key[]=$k;
+            $value[]=$v;
+        }
+        $key=implode(',',$key);
+        DB::insert('jinrong91_data', array($key))->values($array)->execute();
+        return TRUE;
+
+    }
+    public function update($id,$array){
+        if($id < 0){
+            return FALSE;
+        }
+        $update = $array;
+
+        DB::update('jinrong91_data')->set($update)
+            ->where('id','=',$id)
+            ->execute();
+        return TRUE;
+    }
+
+
+    public function create_short($user_id,$status){
+        list($id,$a) = DB::insert("jinrong91_short",array('user_id','module','result','create_time'))->values(array($user_id,'reskPrompt',$status,time()))->execute();
+        return $id;
+    }
+
+    public function getshortOne($user_id){
+       return DB::select("*")->from("jinrong91_short")->where('user_id','=',$user_id)->execute()->current();
+    }
+
+
+}

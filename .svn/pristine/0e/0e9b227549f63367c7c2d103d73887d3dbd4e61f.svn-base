@@ -1,0 +1,556 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 18/1/13
+ * Time: 下午11:11
+ *
+ *  逾期罚息与滞纳金记录表Model
+ *  还款顺序:
+ *      滞纳金
+ *      罚息
+ *      管理费
+ *      利息
+ *      本金
+ *
+ */
+class Model_Bill_OverduePenalty extends Model_Database {
+
+
+
+
+
+    /** 创建一条罚息记录
+     * @param $bill_id
+     * @param array $array
+     * @return bool
+     */
+    public function create($bill_id,array $array = array())
+    {
+
+        if($bill_id<1 || !is_array($array)){
+            return false;
+        }
+        if($bill = Model::factory('Bill')->getOne($bill_id)){
+            $order_id = (int)$bill['order_id'];
+            $user_id = (int)$bill['user_id'];
+            $dateline =  isset($array['dateline']) ? $array['dateline'] : date('Y-m-d');                                //罚息计算日
+            $day = isset($array['day']) && $array['day']>0 ? (int)$array['day'] : 1 ;                                   //逾期第几天(天数)
+            $repay_amount = isset($array['repay_amount']) ? (float)$array['repay_amount'] : 0.00 ;                      //实际应还(每日计算) = 上一日实际应还 + 当日滞纳金  + 当日罚息 + 当日管理费+ 当日利息 + 当日本金 - 当日还款;
+            $repay_late_fee = isset($array['repay_late_fee']) ? (float)$array['repay_late_fee'] : 0.00 ;                //应还滞纳金
+            $repay_penalty = isset($array['repay_penalty']) ? (float)$array['repay_penalty'] : 0.00 ;                   //应还罚息
+            $repay_management = isset($array['repay_management']) ? (float)$array['repay_management'] : 0.00 ;          //应还管理费
+            $repay_interest = isset($array['repay_interest']) ? (float)$array['repay_interest'] : 0.00 ;                //应还利息
+            $repay_principal = isset($array['repay_principal']) ? (float)$array['repay_principal']  : 0.00 ;            //应还本金
+            $repaid_amount = isset($array['repaid_amount']) ? (float)$array['repaid_amount'] : 0.00 ;                   //当日还款
+            $repaid_late_fee = isset($array['repaid_late_fee']) ? (float)$array['repaid_late_fee'] : 0.00 ;             //归还滞纳金(当日)
+            $repaid_penalty = isset($array['repaid_penalty']) ? (float)$array['repaid_penalty'] : 0.00 ;                //归还滞纳金(当日)
+            $repaid_management = isset($array['repaid_management']) ? (float)$array['repaid_management'] : 0.00 ;       //归还滞纳金(当日)
+            $repaid_interest = isset($array['repaid_interest']) ? (float)$array['repaid_interest'] : 0.00 ;             //归还利息(当日)
+            $repaid_principal = isset($array['repaid_principal']) ? (float)$array['repaid_principal'] : 0.00 ;          //归还本金(当日)
+
+            $penalty_rate = isset($array['penalty_rate']) ? (float)$array['penalty_rate'] : 0.000 ;                     //罚息利率
+            $late_fee_rate = isset($array['late_fee_rate']) ? (float)$array['late_fee_rate'] : 0.000 ;                  //滞纳金利率
+            $day_penalty = isset($array['day_penalty']) ? (float)$array['day_penalty'] : 0.00 ;                         //当日罚息
+            $day_late_fee = isset($array['day_late_fee']) ? (float)$array['day_late_fee'] : 0.00 ;                      //当日滞纳金
+
+            $bill_repay_amount = isset($array['bill_repay_amount']) ? (float)$array['bill_repay_amount'] : 0.000 ;      //账单应还:账单当日表现与主表同步
+            $bill_repaid_amount = isset($array['bill_repaid_amount']) ? (float)$array['bill_repaid_amount'] : 0.000 ;   //账单已还:账单当日表现与主表同步
+
+            $create_time = time();
+
+            list($insert_id,$rows) = DB::insert('bill_overdue_penalty',[
+                'bill_id','order_id', 'user_id', 'dateline', 'day',
+                'repay_amount',  'repay_late_fee', 'repay_penalty', 'repay_management', 'repay_interest','repay_principal',
+                'repaid_amount',  'repaid_late_fee', 'repaid_penalty', 'repaid_management', 'repaid_interest','repaid_principal',
+                'bill_repay_amount', 'bill_repaid_amount',
+                'penalty_rate', 'late_fee_rate', 'day_penalty', 'day_late_fee',
+                'create_time'
+            ])
+                ->values([
+                $bill_id, $order_id, $user_id, $dateline, $day,
+                    $repay_amount,  $repay_late_fee, $repay_penalty, $repay_management, $repay_interest,$repay_principal,
+                    $repaid_amount,  $repaid_late_fee, $repaid_penalty, $repaid_management, $repaid_interest, $repaid_principal,
+                    $bill_repay_amount, $bill_repaid_amount,
+                    $penalty_rate, $late_fee_rate, $day_penalty, $day_late_fee,
+                    $create_time,
+                ])
+                ->execute();
+
+            if($insert_id>0){
+                return $insert_id;
+            }
+
+        }
+
+        return false;
+    }
+
+
+    /** 更新
+     * @param $id
+     * @param array $array
+     * @return bool
+     */
+    public function update($id,$array = array())
+    {
+        if($id<1 || !is_array($array)){
+            return false;
+        }
+        return null!== DB::update('bill_overdue_penalty')->set($array)->where('id','=',$id)->execute();
+    }
+
+
+    /** 获取账单罚息列表
+     * @param $bill_id
+     * @return mixed
+     */
+    public function getByBillId($bill_id,$date=null)
+    {
+        if($bill_id<1){
+            return false;
+        }
+        $query = DB::select()->from('bill_overdue_penalty')->where('bill_id','=',$bill_id);
+        if($date!==null){
+            $query->and_where('dateline','=',$date);
+        }
+        return $query->order_by('dateline','ASC')->execute()->as_array();
+    }
+
+    /** 获取单条罚息记录
+     * @param int $order_id
+     * @param string $date eg:2016-06-16
+     * @return mixed
+     */
+    public function getOneByBillId($bill_id,$date=null)
+    {
+        if($bill_id<1){
+            return false;
+        }
+        $query = DB::select()->from('bill_overdue_penalty')->where('bill_id','=',$bill_id);
+        if($date!==null){
+            $query->and_where('dateline','=',$date);
+        }
+        return $query->order_by('dateline','DESC')->limit(1)->execute()->current();
+    }
+
+
+
+
+
+    /** 计算利息
+     * @param $amount
+     * @param int $day
+     * @return int|string
+     * 逾期15天内每天0.005 逾期15天以后每天0.008 180天封顶!
+     * 2017-2-21 该方法作废 by majin
+     */
+    public function interest($amount,$day=0){
+        if($day>0 && $day<=Model_Order::PENALTY_MAX_DAY){
+            return bcmul($amount,Model_Order::RATE_180D,2);
+        }
+        return 0;
+    }
+
+    /** 滞纳金
+     * @param $amount
+     * @return string
+     * 滞纳金=借款金额*滞纳金利率;
+     * 2017-2-21 该方法作废 by majin
+     */
+    public function late_fee($amount){
+        return bcmul($amount,Model_Order::LATE_FEE_RATE,2);
+    }
+
+
+    /** 根据订单状态返回费率规则
+     * @param $type
+     * @param $order_id :用于判断订单新旧,老订单使用旧费率
+     * @return array
+     */
+    public function get_rate($type,$order_id=null){
+        switch((int)$type){
+            case Model_Order::ORDER_TYPE_PAY_FOR_CREDITCARD:
+            case Model_Order::ORDER_TYPE_FAST:
+                $late_fee_rate = Model_Order_FastLoan::LATE_FEE_RATE;//滞纳金费率
+                $penalty_rate = Model_Order_FastLoan::PENALTY_RATE;//罚息费率
+                $penalty_max_day = Model_Order_FastLoan::PENALTY_MAX_DAY;//最大逾期罚息天数
+                break;
+
+            case Model_Order::ORDER_TYPE_ENSURE:
+            case Model_Order::ORDER_TYPE_CREDIT_AND_ENSURE:
+                $late_fee_rate = Model_Order_EnsureLoan::LATE_FEE_RATE;//滞纳金费率
+                $penalty_rate = Model_Order_EnsureLoan::PENALTY_RATE;//罚息费率
+                $penalty_max_day = Model_Order_EnsureLoan::PENALTY_MAX_DAY;//最大逾期罚息天数
+                break;
+
+            default:
+                $late_fee_rate = Model_Order::LATE_FEE_RATE;//默认滞纳金费率
+                $penalty_rate = Model_Order::RATE_180D;//默认罚息费率
+                $penalty_max_day = Model_Order::PENALTY_MAX_DAY;//默认最大逾期罚息天数
+        }
+        //改版前的老订单继续保持旧的息费标准
+        if( (int)$type===Model_Order::ORDER_TYPE_FAST && $order_id!==null && $order_id <= $this->_v1_end_order_id){
+            $late_fee_rate = Model_Order::LATE_FEE_RATE;//默认滞纳金费率
+            $penalty_rate = Model_Order::RATE_180D;//默认罚息费率
+            $penalty_max_day = Model_Order::PENALTY_MAX_DAY;//默认最大逾期罚息天数
+        }
+        return [
+            'late_fee_rate'=>$late_fee_rate,
+            'penalty_rate'=>$penalty_rate,
+            'penalty_max_day'=>$penalty_max_day,
+        ];
+    }
+
+
+    
+    
+    
+    
+    
+
+    /**
+     * 计算并保存当日罚息与滞纳金 (用于生成当日罚息记录)
+     * @param int   $bill_id
+     * @param mixed $date
+     * @param array $operation
+        * (bool) must_save  强制生成(超过最大罚息周期后的还款,必须使用此项)
+        * (bool) free 减免当日息费
+        *
+     * @return bool
+     *
+     * 当日如果有还款,也需要先建立罚息记录. 然后调用 Model::factory('OverdueRepay')->create() 创建还款记录 然后再使用  $this->save_repay(); 计算利息
+     */
+    public function dayCreate($bill_id, $date=null, $operation=['must_save'=>true,'free'=>false]){
+        if ($bill_id<1){
+            return false;
+        }
+        if($date===null){
+            $date = date('Y-m-d');
+        }
+        $bill = null;
+        $order = null;
+        if($bill = Model::factory('Bill')->getOne($bill_id)) {
+            if($order = Model::factory('Order')->getOne($bill['order_id'])) {
+                //条件通过
+            }else{
+                return false;
+            }
+        }else{
+            return false;
+        }
+        
+
+        
+        $rs = DB::select()->from('bill_overdue_penalty')->where('bill_id','=', $bill_id)->and_where('dateline','=',$date)->execute()->current();//指定日期是否已经算过
+        if($bill && !$rs ) {
+            $user_id = $bill['user_id'];
+
+            if($bill['id'] > $this->_v2_end_kantouxi_id){
+                $loan = bcadd($bill['loan_amount'],$bill['charge'],2);
+            }else{
+                $loan = $bill['loan_amount'];
+            }
+
+            $refunded = $bill['before_overdue_refunded'];
+            $calc_date = $date;
+            $expire_day = Lib::factory('Date')->countDayDay($bill['expire_time'],strtotime($date));//计算距离逾期第一天有多少个有效天数
+            $_principal = bcsub($loan,$refunded,2);//上一日应还本金
+            $_debt = $_principal;//上一日实际欠款
+            $_interest = 0.00;//上一日累计利息
+            $_late_fee = 0.00;//上一日累计滞纳金
+            $_repayment_amount = $loan;//应还金额与order表中的字段对应,每天算系后都会增加
+            $_refunded_amount = $refunded;//已还金额与order表中的字段对应,每天算系后都会增加
+            $pb = DB::select()->from('order_penalty')->where('order_id','=', $bill_id)->order_by('calc_date','DESC')->limit(1)->execute()->current();
+            if($pb){
+                $_principal = $pb['principal'];
+                $_debt = $pb['debt'];
+                $_interest = $pb['interest'];
+                $_late_fee = $pb['late_fee'];
+                $_repayment_amount = $pb['repayment_amount'];//应还金额与order表中的字段对应,每天算系后都会增加
+                $_refunded_amount = $pb['refunded_amount'];
+            }
+
+
+            //[根据产品类型选额费率]-----------------------------------------------------------
+            $rate = $this->get_rate($bill['type'],$bill['id']);
+
+            //当日免息(一般用于解决扣款确认跨天或多日后确认)
+            if($free){
+                $late_fee_rate = 0.0000;//滞纳金费率
+                $penalty_rate = 0.0000;//罚息费率
+            }else{
+                $late_fee_rate = $rate['late_fee_rate'];//滞纳金费率
+                $penalty_rate = $rate['penalty_rate'];//罚息费率
+            }
+            $penalty_max_day = $rate['penalty_max_day'];//最大逾期罚息天数
+
+
+            //$day_late_fee = bcmul($loan,$late_fee_rate,2)//当日滞纳金
+            $day_late_fee = bcmul($_principal,$late_fee_rate,2);//当日滞纳金
+
+            if($expire_day>0 && $expire_day<=$penalty_max_day){
+                $day_interest =  bcmul($_principal,$penalty_rate,2);
+            }elseif($expire_day>$penalty_max_day && $must_save){//超过最大罚息天数后,需要强制生成当日记录,利息和滞纳金
+                $penalty_rate = 0.00;
+                $day_interest =  0.00;
+                $late_fee_rate = 0.00;
+                $day_late_fee = 0.00;
+            }else{
+                return false;
+            }
+
+            $repay =0.00;
+            $repay_late_fee = 0.00;
+            $repay_interest = 0.00;
+            $repay_principal = 0.00;
+
+
+
+
+            $principal = $_principal;
+            $debt = bcadd(bcadd($_debt,$day_interest,2), $day_late_fee,2);
+            $interest = bcadd($_interest,$day_interest,2);
+            $late_fee = bcadd($_late_fee,$day_late_fee,2);
+            $repayment_amount = bcadd(bcadd($day_interest,$day_late_fee,2),$_repayment_amount,2);//每天增长
+            $refunded_amount = bcadd($repay,$_refunded_amount,2);//每天合计
+
+            $save_array =array(
+                'user_id' => $user_id,
+                'calc_date' => $date,
+                'principal' => $principal,
+                'day' => $expire_day,
+                'interest' => $interest,
+                'late_fee' => $late_fee,
+                'debt' => $debt,
+                'repayment_amount'=>$repayment_amount,
+                'refunded_amount'=>$refunded_amount,
+                'repay' => $repay,
+                'repay_late_fee' => $repay_late_fee,
+                'repay_interest' => $repay_interest,
+                'repay_principal' => $repay_principal,
+                'day_interest' => $day_interest,
+                'day_late_fee' => $day_late_fee,
+                'penalty_rate' => $penalty_rate,
+                'late_fee_rate' => $late_fee_rate,
+            );
+
+            if($save_id = $this->create($bill_id,$save_array )){
+               return null !== Model::factory('Order')->update($bill_id,array(
+                    'repayment_amount'=>$repayment_amount,
+                    'refunded_amount'=>$refunded_amount,
+                    'calc_time'=>time()
+                ));
+
+            }
+
+        }
+        return false;
+    }
+
+
+    //免息 (如:我方责任减免日息)
+    public function free($order_id, $date=null, $must_save=true){
+        return $this->save($order_id,$date,$must_save,true);
+    }
+
+
+    //映射save_repay 缩短方法名 准备未来规范名称
+    public function repay($order_id,$amount,$date=null){
+        return $this->save_repay($order_id,$amount,$date);
+    }
+
+
+
+
+    public function save_repay($order_id,$amount,$date=null){
+        if($order_id<1 || $amount<0){
+            return false;
+        }
+        if($date===null){
+            $date = date('Y-m-d');
+        }
+        $penalty = $this->get_one_by_order_id($order_id,$date);
+        if(!$penalty){
+            $this->save($order_id,$date,true);//创建罚息记录
+            $penalty = $this->get_one_by_order_id($order_id,$date);
+            if(!$penalty){
+                return false;
+            }
+        }
+
+        $late_fee = $penalty['late_fee'];//滞纳金
+        $interest = $penalty['interest'];//罚息
+        $principal = $penalty['principal'];//本金
+        $debt = $penalty['debt'];//实际欠款
+        $repay = $penalty['repay'];//当日还款
+        $repay_late_fee = $penalty['repay_late_fee'];//滞纳金还款
+        $repay_interest = $penalty['repay_interest'];//利息还款
+        $repay_principal = $penalty['repay_principal'];//本金还款
+
+        //$repayment_amount = $penalty['repayment_amount'];
+        $refunded_amount =  $penalty['refunded_amount'];
+
+
+        //当日还款金额
+        $repay = bcadd($repay,$amount,2);
+        //订单累计还款金额
+        $refunded_amount = bcadd($refunded_amount,$amount,2);
+
+        //滞纳金
+        if(bccomp($amount,$late_fee,2)>=0){
+            $amount = bcsub($amount,$late_fee,2);
+            $repay_late_fee = bcadd($repay_late_fee,$late_fee,2);
+            $late_fee = 0.00;
+        }else{
+            $late_fee = bcsub($late_fee,$amount,2);
+            $repay_late_fee = bcadd($repay_late_fee,$amount,2);
+            $amount = 0.00;
+        }
+
+        //利息
+        if(bccomp($amount,0,2)>0){
+            if(bccomp($amount,$interest,2)>=0){
+                $amount = bcsub($amount,$interest,2);
+                $repay_interest = bcadd($repay_interest,$interest,2);
+                $interest = 0.00;
+            }else{
+                $interest = bcsub($interest,$amount,2);
+                $repay_interest = bcadd($repay_interest,$amount,2);
+                $amount = 0.00;
+            }
+        }
+
+        //本金
+        if(bccomp($amount,0,2)>0){
+            if(bccomp($amount,$principal,2)>=0){
+                $amount = bcsub($amount,$principal,2);
+                $repay_principal = bcadd($repay_principal,$principal,2);
+                $principal = 0.00;
+            }else{
+                $principal = bcsub($principal,$amount,2);
+                $repay_principal = bcadd($repay_principal,$amount,2);
+                $amount = 0.00;
+            }
+        }
+
+
+        $debt = bcadd(bcadd($principal,$interest,2),$late_fee,2);
+
+
+        $save_array = array(
+            'principal' => $principal,
+            'interest' => $interest,
+            'late_fee' => $late_fee,
+            'debt' => $debt,
+            'repay' => $repay,
+            'repay_principal' => $repay_principal,
+            'repay_interest' => $repay_interest,
+            'repay_late_fee' => $repay_late_fee,
+            'refunded_amount' => $refunded_amount,
+        );
+
+        if( $this->update($penalty['id'],$save_array)){
+            return Model::factory('Order')->update($order_id,array(
+                'refunded_amount'=>$refunded_amount,
+                'calc_time'=>time()
+            ));
+
+        }
+
+
+        return false;
+    }
+
+
+
+
+
+    /** 删除记录(用于重新生成罚息&还款记录)
+     * @param $order_id
+     * @return object
+     */
+    public function delete_by_order_id($order_id,$begin=null,$end=null){
+        $delete = DB::delete('order_penalty')->where('order_id', '=', $order_id);
+        if($begin!=null){
+            $delete->and_where('calc_date','>=',$begin);
+        }
+        if($end!=null){
+            $delete->and_where('calc_date','<=',$end);
+        }
+        return $delete->execute();
+    }
+
+    /** 重建罚息记录
+     * @param $order_id
+     * @param null $begin 重算起始时间,包含当天
+     * @return  array | bool
+     */
+    public function rebuild($order_id,$begin=null){
+        $order = Model::factory('Order')->get_one($order_id);
+        if(!$order){
+            return false;
+        }
+
+        //[根据产品类型选额费率]-----------------------------------------------------------
+        $rate = $this->get_rate($order['type'],$order['id']);
+        $late_fee_rate = $rate['late_fee_rate'];//滞纳金费率
+        $penalty_rate = $rate['penalty_rate'];//罚息费率
+        $penalty_max_day = $rate['penalty_max_day'];//最大逾期罚息天数
+
+
+        if($begin===null) {
+            $this->delete_by_order_id($order['id']);
+            $begin_time = $order['expire_time'];//没有开始时间,取订单过期时间
+        }else{
+            if(strtotime($begin)<$order['expire_time']){//早于逾期时间,使用预期时间
+                $this->delete_by_order_id($order['id'], date('Y-m-d',$order['expire_time']));
+                $begin_time = $order['expire_time'];
+            }else{
+                $this->delete_by_order_id($order['id'], $begin);
+                $begin_time = strtotime($begin);
+            }
+
+        }
+
+        $time = time();
+        $count_day = Lib::factory('Date')->countDayDay($begin_time, $time);//取两天又
+        $calc_day = $count_day > $penalty_max_day? $penalty_max_day : $count_day;
+        $res = ['count_day'=>$count_day, 'calc_day'=>$calc_day,'dateline'=>[]];
+        $i=1;
+        $_date = date('Y-m-d',$begin_time);
+
+        while($i<=$calc_day){
+            $res['dateline'][$_date]=[];
+            if($amount = Model::factory('Order_OverdueRepayLog')->get_amount_order_id($order['id'],$_date)){
+                $this->save_repay($order['id'],$amount,$_date);
+                $res['dateline'][$_date]=['repay'=>$amount];
+            }else{
+                $this->save($order['id'],$_date);
+                $res['dateline'][$_date]=['repay'=>0];
+            }
+
+            $i++;
+            $_date = date('Y-m-d',strtotime($_date.' +1 day'));
+        }
+        //逾期最大罚息天数之后的还款记录
+        $new_date = date('Y-m-d',strtotime(date('Y-m-d').' +1 day'));
+        $new_amount = Model::factory('Order_OverdueRepayLog')->get_amount_order_id($order['id'],$_date, $new_date);
+        if($new_amount>0){
+            $datelines =  Model::factory('Order_OverdueRepayLog')->get_distinct_date_by_order_id($order['id'],$_date, $new_date);
+            foreach($datelines as $r){
+                $amount = Model::factory('Order_OverdueRepayLog')->get_amount_order_id($order['id'],$r['repay_date']);
+                $this->save_repay($order['id'],$amount,$r['repay_date']);
+                $res['dateline'][$_date]=['repay'=>$amount];
+            }
+        }
+        return $res;
+
+    }
+
+
+
+
+
+}

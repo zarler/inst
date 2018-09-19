@@ -1,0 +1,110 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: yangge
+ * Date: 2018/1/24
+ * Time: 上午11:53
+ */
+class Lib_CreditReview_RiskCommon extends Lib_Common
+{
+
+    const LIB_RISK_REVIEW_STATUS_INIT = 0;                              //风险审核结果：初始化状态
+    const LIB_RISK_REVIEW_STATUS_PASS = 1;                              //风险审核结果：通过状态
+    const LIB_RISK_REVIEW_STATUS_UNPASS = 2;                            //风险审核结果：拒绝状态
+
+    public $user_id;
+    public $user;
+
+    public $response;
+    public $request;
+    public $method;
+
+
+    public function user_id($user_id)
+    {
+
+        $this->user_id = $user_id;
+        $user = Model::factory("User")->get_one($user_id);
+        $this->user = $user;
+
+        return $this;
+    }
+
+    //发送数据
+    public function send($data, $provider, $action)
+    {
+        if (!$data) {
+            return false;
+        }
+        $request_no = "Inst".Text::random('numeric', 6).time();
+        $re = Model::factory("RiskDecision")->addData($this->user_id, $request_no, $data, $provider, $action);
+        if (!$re) {
+            $this->response(false, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口请求异常']);
+        }
+        $result = DClient::factory("send")->user_id($this->user_id)->post($data, $request_no)->execute()->as_array();
+//        var_dump($result);die;
+//        $result['respCode'] = 0;
+//        $result['checkNo'] = 11111;
+        if (is_array($result) && $result['respCode'] == '0') {
+            Model::factory("RiskDecision")->setCheck($re, $result);
+            $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'message' => '处理成功']);
+        } else {
+            $this->response(false, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口请求异常']);
+        }
+
+        return $this;
+    }
+
+    //获取数据
+    public function get($provider, $action)
+    {
+        $res = Model::factory($provider."_Short")->get_one($this->user_id, $action);
+        if (!empty($res)) {
+            if ($res['result'] == self::LIB_RISK_REVIEW_STATUS_PASS) {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'review'=>self::LIB_RISK_REVIEW_STATUS_PASS,'message' => '审核通过']);
+            } else {
+                $this->response(false, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS,'review' => self::LIB_RISK_REVIEW_STATUS_UNPASS, 'message' => '审核拒绝']);
+            }
+        } else {
+            $re1 = Model::factory("RiskDecision")->getOne($this->user_id, $provider, $action);
+            $data['check_no'] = $re1['check_no'];
+//            $result = DClient::factory("send")->user_id($this->user_id)->post($data)->execute()->as_array();
+            $result['respCode'] = 1;
+            $risk = true;
+            if (is_array($result) && $result['respCode'] == 0) {
+                foreach ($result['ruleList'] as $key => $val) {
+                    if ($val['ruleResult'] == 0) {
+                        $risk = false;
+                    }
+                }
+            } else {
+                $this->response(false,
+                    ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口请求异常', 'retry' => '1']);
+            }
+            if ($risk) {
+                Model::factory($provider."_Short")->create([
+                    'user_id' => $this->user_id, 'module' => $action, 'result' => self::LIB_RISK_REVIEW_STATUS_PASS,
+                ]);
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'review'=>self::LIB_RISK_REVIEW_STATUS_PASS, 'message' => '创建记录并审核通过']);
+            } else {
+                Model::factory($provider."_Short")->create([
+                    'user_id' => $this->user_id, 'module' => $action, 'result' => self::LIB_RISK_REVIEW_STATUS_UNPASS,
+                ]);
+                $this->response(false,
+                    ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'review'=>self::LIB_RISK_REVIEW_STATUS_UNPASS, 'message' => '创建记录并审核拒绝']);
+            }
+
+        }
+
+        return $this;
+    }
+
+    public function is_json($string)
+    {
+        json_decode($string);
+
+        return (json_last_error() == JSON_ERROR_NONE);
+    }
+
+}

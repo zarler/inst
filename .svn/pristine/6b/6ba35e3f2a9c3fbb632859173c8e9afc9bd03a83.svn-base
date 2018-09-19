@@ -1,0 +1,109 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * Permission: wangxuesong
+ * Date: 16/5/28
+ * Time: 下午4:17
+ * 主要用于修改用户的基本信息 和审核信息
+ */
+
+class Model_User_AuditModify extends Model_Database {
+
+
+    //构造查询条件
+    private function query_builder($query, $array=array()) {
+
+
+         $target_id = isset($array['target_id'])?$array['target_id']:0;
+
+        //根据表名做查询
+        if(isset($array['table_name']) && $array['table_name']!="") {
+            $query->where('table_name','=',$array['table_name']);
+
+            //根据被修改目标ID 如紧急联系人对应的记录id做查询
+            if($array['table_name']=='contact'){
+                $query->and_where('target_id','=',$target_id);
+            }
+        }
+
+        //根据表字段名做查询
+        if(isset($array['field_name']) && $array['field_name']!=='') {
+            $query->and_where('field_name', '=', $array['field_name']);
+        }
+
+        return $query;
+    }
+
+
+    //获取用户资料修改记录
+    public function get_list($user_id,$array=array()){
+
+
+        $query = DB::select('admin_id,target_id,modify_value,create_time','step')->from('user_audit_modify')
+            ->and_where('user_id','=',$user_id);
+        //如果$array大于0 说明有多个参数
+        if(count($array)>0) {
+            $query = $this->query_builder($query,$array);
+        }
+
+        $rs= $query->execute()->as_array();
+        if($rs){
+            foreach($rs as $key =>$val) {
+                $admin = Model::factory('Admin_User')->get_one($val['admin_id']);
+                $rs[$key]['admin_name']=$admin['name'];
+                unset($admin);
+            }
+        }
+        return $rs;
+    }
+
+    //更新用户修改资料
+    public  function  Modify($array=[]){
+        $array['target_id'] = !empty($array['target_id'])?$array['target_id']:0;
+        $field_arr = array('admin_id', 'user_id', 'target_id', 'table_name', 'field_name', 'modify_value', 'value_type', 'create_time','step');
+        $data_arr = array($array['admin_id'], $array['user_id'], $array['target_id'], $array['table_name'], $array['field_name'], $array['modify_value'], 'string', time(),$array['step']);
+        list($insert_id, $affected_rows) = DB::insert("user_audit_modify", $field_arr)->values($data_arr)->execute();
+        if ($affected_rows == 1) {
+            return $affected_rows;
+        } else {
+           return false;
+        }
+    }
+
+    //获取用户id修改过的所有字段
+    public function get_audit_modify($user_id){
+
+        $query = DB::select("field_name",'target_id')->from('user_audit_modify')->where('user_id','=',$user_id);
+        $fieldData= $query->execute()->as_array();
+        $data=[];
+        //把用户所有操作过的字段组成数组并去重
+        $data['filename']=array_unique(array_column($fieldData,'field_name'));
+
+        if($fieldData){
+            //循环处理针对联系人列表形式判断 信息更新情况
+            foreach ($fieldData as $key=>$value){
+                if($value['target_id']!=0){
+                    $data['contact'][$value['field_name']][]=$value['target_id'];
+                }
+
+            }
+            if(!isset($data['contact']['contact_name'])){
+                $data['contact']['contact_name']=[];
+            }
+
+            if(!isset($data['contact']['contact_mobile'])){
+                $data['contact']['contact_mobile']=[];
+            }
+            if(!isset($data['contact']['contact_relation'])){
+                $data['contact']['contact_relation']=[];
+            }
+
+        }else{
+            $data['contact']=['contact_name'=>[],"contact_mobile"=>[],"contact_relation"=>[]];
+        }
+
+        return $data;
+    }
+
+}

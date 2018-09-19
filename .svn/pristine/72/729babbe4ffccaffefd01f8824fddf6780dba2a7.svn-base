@@ -1,0 +1,31 @@
+<?php defined('SYSPATH') or die('No direct script access.');
+
+/*
+ * 订单核对页面
+ *  * Lib::factory('Debug')->D($this->controller);
+ * Lib::factory('Dir')->dir_path(self::$config['security_path']).$result[0]['uri']);
+ * Lib::factory('Debug')->array2file(array(1,2,3,4,5), APPPATH.'../static/liu_test.php');
+ *
+ *
+ * */
+
+class Controller_Ver1_H5_APP_Check extends Common {
+
+    protected $_header_data = NULL;
+    public function before(){
+        parent::before();
+    }
+
+	public function action_Index()
+	{
+
+
+
+        $this->Load();
+        parent::$_VArray['title'] = '确认借款';
+        $view = View::factory($this->_vv.'LoanProcess/Check');
+        $view->_VArray = parent::$_VArray;
+        $this->response->body($view);
+	}
+
+}

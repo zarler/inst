@@ -1,0 +1,56 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: isNum
+ * Date: 2016/9/21
+ * Time: 下午5:33
+ */
+class Model_SMS extends Model{
+
+    const STATUS_VALID = 1;								//有效
+    const STATUS_INVALID = 2;							//无效
+    const STATUS_DELETED = 3;                           //已取消(删除)
+
+    const TYPE_NORMAL = 1;
+    const TYPE_AD = 2;
+    const TYPE_OVERDUE = 3;
+
+
+    /**
+     * 根据模板码获取单条记录
+     * @param string $templateCode
+     * @return mixed
+     */
+    public function get_one_by_template_code($templateCode = '')
+    {
+        return DB::select()->from('sms')->join('sms_provider', 'left')
+            ->on('sms.provider_id', '=', 'sms_provider.id')
+            ->where('code', '=', $templateCode)
+            ->execute()
+            ->current();
+    }
+
+    /**
+     * 获取全部短信
+     * @param array $column
+     * @param mixed $status
+     * @return mixed
+     */
+    public function get_all($column=array(),$status=self::STATUS_VALID) {
+        if(!empty($column)){
+            $query = DB::select($column)->from('sms');
+        }else{
+            $query = DB::select()->from('sms');
+        }
+
+        if(is_array($status)){
+            $query->and_where('status','IN',$status);
+        }else{
+            $query->and_where('status','=',$status);
+        }
+
+        return $query->execute()->as_array();
+    }
+
+}

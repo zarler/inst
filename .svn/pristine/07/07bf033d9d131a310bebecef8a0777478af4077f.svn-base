@@ -1,0 +1,131 @@
+<?php defined('SYSPATH') or die('No direct script access.');
+//入口 触发主体
+
+/*
+ * 活动页面
+ *  * Lib::factory('Debug')->D($this->controller);
+ * Lib::factory('Dir')->dir_path(self::$config['security_path']).$result[0]['uri']);
+ * Lib::factory('Debug')->array2file(array(1,2,3,4,5), APPPATH.'../static/liu_test.php');
+ *
+ *
+ * */
+
+class Controller_Ver1_H5_APP_HomePage extends AppCore {
+
+    protected $note_repay_order_day = 7;
+    public function before(){
+        parent::before();
+    }
+
+	public function action_Index()
+	{
+        $this->Load();
+        //ad 公告
+        $bannerModel = Model::factory('AD');
+        $bannerData = $bannerModel->getNotice(1, [Model_AD::ALL_APP_ID, App::$id]);//type 为 1
+        if ($bannerData) {
+            parent::$_VArray['notice'] = $bannerData['subject'];
+            parent::$_VArray['notice_url'] = $bannerData['target'];
+        }else{
+            parent::$_VArray['notice'] = '';
+            parent::$_VArray['notice_url'] = '';
+        }
+        unset($bannerModel, $bannerData);
+
+        parent::$_VArray['info'] = [
+            'logo' => 'http://a-cdn.timecash.cn/banner/grzx/bank_card.png',//logo和name app端选择一个，返回时另一个为空
+            'name' => '耀贷',
+            'title' => '最高可借(元)',
+            'button_title' => '登录',
+            'button_url' => 'app://app.inst/User/Login',
+            'button_enable' => '0', //是否可点击
+            'max_amount' => '100000', //最大金额
+            'available_amount' => '0', //可用金额
+            'credit_auth' => '0',
+            'sub_info' => '', //显示信息
+        ];
+        //是否登录
+        if (isset(App::$_token['user_id']) && App::$_token['user_id'] > 0) {
+            parent::$_VArray['info']['credit_auth'] = App::$_user['credit_auth'];
+            //是否符合借款要求
+            if ((int)App::$_user['allow_login'] !== (int)Model_User::ALLOW_LOGIN__ALLOWED ||
+                in_array(App::$_user['status'], [Model_User::STATUS_DENY, Model_User::STATUS_LOANDENY, Model_User::STATUS_DENYFOREVER, Model_User::STATUS_DENYTEMP, Model_User::STATUS_DELETED])
+            ) {
+                parent::$_VArray['info']['button_title'] = '未通过';
+                parent::$_VArray['info']['button_url'] = '';
+            }
+            if (in_array((int)App::$_user['credit_auth'], [Model_User::CREDIT_AUTH_BASE_ONSUBMIT, Model_User::CREDIT_AUTH_BASE_SUBMITED, Model_User::CREDIT_AUTH_BASE_CHECKING])) {
+                parent::$_VArray['info']['button_title'] = '审核中';
+                parent::$_VArray['info']['button_url'] = '';
+            } elseif ((int)App::$_user['credit_auth'] == Model_User::CREDIT_AUTH_BASE_FAILED) {
+                //授信未通过
+                parent::$_VArray['info']['button_title'] = '立即借款';
+                parent::$_VArray['info']['button_url'] = 'app://app.inst/Inst/Start';
+                parent::$_VArray['info']['button_enable'] = '1';
+                parent::$_VArray['info']['max_amount'] = 0;
+                parent::$_VArray['info']['available_amount'] = 0;
+            } elseif ((int)App::$_user['credit_auth'] == Model_User::CREDIT_AUTH_BASE_BACK) {
+                parent::$_VArray['info']['button_title'] = '授信未通过';
+                parent::$_VArray['info']['button_url'] = 'app://app.inst/CreditInfo/List';
+
+            } elseif ((int)App::$_user['credit_auth'] == Model_User::CREDIT_AUTH_BASE_VERIFIED) {
+                //授信通过
+                parent::$_VArray['info']['button_title'] = '立即借款';
+                parent::$_VArray['info']['button_url'] = 'app://app.inst/Inst/Start';
+                parent::$_VArray['info']['button_enable'] = '1';
+            }
+
+            $this->model['order'] = Model::factory('Order');
+            //额度
+            $fp = Model::factory('User')->get_finance_profile(App::$_token['user_id']);
+            if ($fp) {
+                if (isset($fp['inst_amount']) && $fp['inst_amount'] > 0) {
+                    parent::$_VArray['info']['inst_amount'] = (string)intval($fp['inst_amount']) . '';
+                    parent::$_VArray['info']['max_amount'] = parent::$_VArray['info']['inst_amount'];
+                }
+                $total_loan_amount = $this->model['order']->unfinishedAmount(App::$_token['user_id']);
+                parent::$_VArray['info']['available_amount'] = (string)intval(bcsub(parent::$_VArray['info']['max_amount'], $total_loan_amount, 2));
+                parent::$_VArray['info']['available_amount'] > 0 ? '' : parent::$_VArray['info']['available_amount'] = 0;
+
+            }
+            if(parent::$_VArray['info']['available_amount'] < 1000){
+                parent::$_VArray['info']['button_enable'] = '0';
+                parent::$_VArray['info']['sub_info'] = '提现额度不足';
+            }
+            unset($fp);
+
+            //未完成订单
+            $overdue_order_id = 0;
+            $order = $this->model['order']->getNeedRepay(App::$_token['user_id']);
+            $overdue_num = 0;
+            $need_repay_num = 0;
+            if ($order && count($order) > 0) {
+                foreach ($order as $k => $o) {
+                    if (in_array($o['status'], Model_Order::STATUSGROUP_OVERDUE)) {
+                        $overdue_order_id = $o['id'];
+                        $overdue_num++;
+                    } else {
+                        $o['expire_time'] < (time() + 86400 * $this->note_repay_order_day) && $need_repay_num++;
+                    }
+                }
+                unset($order);
+            }
+            if($overdue_num > 0){
+                $info['button_enable'] = '1';
+                $info['button_title'] = '立即还款';
+                $info['button_url'] = $this->_site_config['default']['rn_site'].'/v/Loan/Detail?orderId=' . $overdue_order_id;
+                $info['sub_info'] = '<!DOCTYPE html><html><body>您有 <strong>' . $overdue_num . '笔 </strong>借款 <strong>已逾期</strong></body></html>';
+            }
+            if($need_repay_num > 0){
+                $info['sub_info'] = '<!DOCTYPE html><html><body>您' . $this->note_repay_order_day . '天内有' . $need_repay_num . '笔借款需要还款</body></html>';
+            }
+        }
+        parent::$_VArray['title'] = '首页';
+        parent::$_VArray['seajsVer'] = $this->getVerification();;
+        $view = View::factory($this->_vv.'User/HomePage');
+        $view->_VArray = parent::$_VArray;
+        $this->response->body($view);
+
+	}
+
+}

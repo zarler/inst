@@ -1,0 +1,274 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: yangge
+ * Date: 2017/12/27
+ * Time: 下午5:47
+ */
+
+class Lib_Risk_API_QianHai_Api_Client{
+    public function execute($info){
+        $qh_cfg = self::getConfig();
+        $header_data = self::getHeaderParmas();
+        $req_data = array(
+            "batchNo" => 'bn'.time(),
+            "records" => array(
+                array(
+                    "reasonNo" => '1',
+                    "idNo"       => isset($info['idCard'])? $info['idCard']:"",
+                    "idType"     => '0',
+                    "name"       => isset($info['name'])? $info['name']:"",
+                    'cardNos'    => isset($info['bankcard']) ? $info['bankcard']:"",
+                    'entityAuthCode' => 'A0001',
+                    'entityAuthDate' => date("Y/m/d",time()),
+                    "seqNo"      => 'sn'.time(),
+                )
+            ),
+        );
+        $busiData = self::encodeData($req_data,$qh_cfg);
+        $sigValue = self::getSigValue($busiData,$qh_cfg);
+        $url = self::getUrl('rskdoo',$qh_cfg);
+
+        $post_data = array(
+            "header"       => $header_data,
+            "busiData"     => $busiData,
+            "securityInfo" => self::getSecurityInfo($sigValue,$qh_cfg),
+        );
+
+        $data = self::post($url,$post_data);
+        $res_data = json_decode($data,true);
+        if(!isset($res_data['securityInfo']) ||!isset($res_data['busiData']) || !isset($res_data['header']['rtCode'])){
+            return FALSE; //返回异常
+        }
+
+        //接口返回失败
+        if($res_data['header']['rtCode'] != 'E000000'){
+            return FALSE; //返回异常
+        }
+
+        //验签
+        if(!self::verifyData($res_data['busiData'],$res_data['securityInfo']['signatureValue'],$qh_cfg)){
+            return FALSE; //返回异常
+        }
+
+        $decode_res_data = json_decode(self::decodeData($res_data['busiData'],$qh_cfg),true);
+        //接口返回暂无数据
+        if($decode_res_data['records'][0]['erCode'] == 'E000996'){
+            return array('status'=>TRUE,'data'=>""); //返回异常
+        }
+        return $decode_res_data;
+    }
+
+
+    public static function encrypt($input, $sKey) {
+        $size = mcrypt_get_block_size ( MCRYPT_3DES, 'ecb' );
+        $input = self::pkcs5_pad ( $input, $size );
+        $key = str_pad ( $sKey, 24, '0' );
+        $td = mcrypt_module_open ( MCRYPT_3DES, '', 'ecb', '' );
+        $iv = @mcrypt_create_iv ( mcrypt_enc_get_iv_size ( $td ), MCRYPT_RAND );
+        @mcrypt_generic_init ( $td, $key, $iv );
+        $data = mcrypt_generic ( $td, $input );
+        mcrypt_generic_deinit ( $td );
+        mcrypt_module_close ( $td );
+        $data = base64_encode ( $data );
+        return $data;
+    }
+
+    /**
+     * 解密
+     * @param $encrypted
+     * @param $sKey
+     * User: qiaokeer
+     */
+    public static function decrypt($encrypted, $sKey) {
+        $encrypted = base64_decode ( $encrypted );
+        $key = str_pad ( $sKey, 24, '0' );
+        $td = mcrypt_module_open ( MCRYPT_3DES, '', 'ecb', '' );
+        $iv = @mcrypt_create_iv ( mcrypt_enc_get_iv_size ( $td ), MCRYPT_RAND );
+        $ks = mcrypt_enc_get_key_size ( $td );
+        @mcrypt_generic_init ( $td, $key, $iv );
+        $decrypted = mdecrypt_generic ( $td, $encrypted );
+        mcrypt_generic_deinit ( $td );
+        mcrypt_module_close ( $td );
+        $y = self::pkcs5_unpad ( $decrypted );
+        return $y;
+    }
+
+    private static function pkcs5_pad($text, $blocksize) {
+        $pad = $blocksize - (strlen ( $text ) % $blocksize);
+        return $text . str_repeat ( chr ( $pad ), $pad );
+    }
+
+    private static function pkcs5_unpad($text) {
+        $pad = ord ( $text {strlen ( $text ) - 1} );
+        if ($pad > strlen ( $text )) {
+            return false;
+        }
+        if (strspn ( $text, chr ( $pad ), strlen ( $text ) - $pad ) != $pad) {
+            return false;
+        }
+        return substr ( $text, 0, - 1 * $pad );
+    }
+
+    private static function PaddingPKCS7($data) {
+        $block_size = mcrypt_get_block_size ( MCRYPT_3DES, MCRYPT_MODE_CBC );
+        $padding_char = $block_size - (strlen ( $data ) % $block_size);
+        $data .= str_repeat ( chr ( $padding_char ), $padding_char );
+        return $data;
+    }
+
+    private static function getConfig(){
+        return  array(
+            "netType"          => "dmz",
+            "transName"        => "query",
+            "productId"        => array('rskdoo'),
+            "apiVer"           => 'v1',
+            "messageCode"      => array('rskdoo'=>'MSC8036'),
+            "orgCode"          => '91440300349941890L',
+            "chnlId"           => 'CRM00508',
+            "authCode"         => 'OTE2823XX',
+            "userName"         => 'xgkjOper',
+            "userPassword"     => '_f0719VZ',
+            "keyStr"           => 'oEUjTQJfhy0703879_351493',
+            "privateKey"       => APPPATH."classes/Lib/Risk/API/QianHai/Api/key/credoo_stg_private_p.pem",
+            "publicKey"        => APPPATH."classes/Lib/Risk/API/QianHai/Api/key/credoo_stg_public_p.pem",
+            "privateKeySecret" => 'timecash2016',
+            "sDomain"          => 'http://qhzx-dcs-pingan-com-cn.https.p.timecash.cn/',
+        );
+    }
+    /**
+     * 获取请求地址
+     * @param $type
+     * @return string
+     * User: qiaokeer
+     */
+    private static function getUrl($type,$cfg){
+        return $cfg['sDomain'].'do/'.$cfg['netType'].'/query/'.$type.'/'.$cfg['apiVer'].'/'.$cfg['messageCode'][$type];
+    }
+
+    /**
+     * 解析数据
+     * @param $data
+     * @param $cfg
+     * @return bool|string
+     * User: qiaokeer
+     */
+    public static function decodeData($data,$cfg){
+        return self::decrypt($data,$cfg['keyStr']);
+    }
+
+    /**
+     * 加密数据
+     * @param $params
+     * @param $cfg
+     * @return string
+     * User: qiaokeer
+     */
+    private static function encodeData($params,$cfg){
+        $params = json_encode($params);
+        return self::encrypt($params,$cfg['keyStr']);
+    }
+
+    /**
+     * 获取签名
+     * @param $data
+     * @param $cfg
+     * @return string
+     * User: qiaokeer
+     */
+    private static function getSigValue ($data,$cfg){
+        $p_sPrivateKey = $cfg['privateKey'];
+        $sPrivateKeyContent =  file_get_contents($p_sPrivateKey);
+        $pi_key =  openssl_get_privatekey($sPrivateKeyContent,$cfg['privateKeySecret']);
+        openssl_sign($data, $sSign, $pi_key, OPENSSL_ALGO_SHA1);
+        openssl_free_key($pi_key);
+        return base64_encode($sSign);
+    }
+
+    /**
+     * 验签
+     * @param $data
+     * @param $signValue
+     * @return bool
+     * User: qiaokeer
+     */
+    public static function verifyData($data,$signValue,$cfg){
+        $p_sPublicKey = $cfg['publicKey'];
+        $sPublicKeyContent =  file_get_contents($p_sPublicKey);
+        $pu_key = openssl_pkey_get_public($sPublicKeyContent);//这个函数可用来判断公钥是否是可用的
+        return openssl_verify($data, base64_decode($signValue), $pu_key, OPENSSL_ALGO_SHA1) ? true : false;
+    }
+
+    /**
+     * 获取头部数据
+     * @return array
+     * User: qiaokeer
+     */
+    private static function getHeaderParmas(){
+        $qh_cfg = self::getConfig();
+        return array(
+            "orgCode"   => $qh_cfg['orgCode'],
+            "chnlId"    => $qh_cfg['chnlId'],
+            "transNo"   => date('YmdHis').rand(10000,99999),
+            "transDate" => date('Y-m-d H:i:s'),
+            "authCode"  => $qh_cfg['authCode'],
+            "authDate"  => date('Y-m-d H:i:s'),
+        );
+    }
+
+    /**
+     * 获取签名数据
+     * @param $sigValue
+     * @return array
+     * User: qiaokeer
+     */
+    private static function getSecurityInfo($sigValue,$cfg){
+        return array(
+            "signatureValue" => $sigValue,
+            "userName"       => $cfg['userName'],
+            "userPassword"   => openssl_digest($cfg['userPassword'],'sha1'),
+        );
+    }
+
+    /**
+     * 请求数据
+     * @param $request_url
+     * @param $str
+     * @param $header
+     * @return mixed
+     * User: qiaokeer
+     */
+    private static function post($request_url,$req){
+        $str = json_encode($req);
+        //$str = http_build_query($req);
+        $headerArr = array(
+            'Content-Type: application/json; charset=utf-8',
+            'Accept:application/json',
+            'Content-Length: ' . strlen($str),
+        );
+
+        $curl = curl_init(); // 启动一个CURL会话
+        //curl_setopt($curl, CURLOPT_SSL_CIPHER_LIST,'SSLv3'); // SSL 版本设置成 SSLv3curl_setopt($curl, CURLOPT_SSL_VERSION,3); // SSL 版本设置成 SSLv3
+        curl_setopt($curl, CURLOPT_URL, $request_url); // 要访问的地址
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0); // 对认证证书来源的检查
+        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0); // 从证书中检查SSL加密算法是否存在
+        curl_setopt($curl, CURLOPT_USERAGENT, 'Mozilla/5.0 (compatible; MSIE 5.01; Windows NT 5.0)');
+        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 1); // 使用自动跳转
+        curl_setopt($curl, CURLOPT_AUTOREFERER, 1); // 自动设置Referer
+        curl_setopt($curl, CURLOPT_POST, 1); // 发送一个常规的Post请求
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $str); // Post提交的数据包
+        curl_setopt($curl, CURLOPT_TIMEOUT, 30); // 设置超时限制防止死循环
+        curl_setopt($curl, CURLOPT_HTTPHEADER, $headerArr);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1); // 获取的信息以文件流的形式返回
+        $tmpInfo = curl_exec($curl); // 执行操作
+        if (curl_errno($curl)) {
+            echo 'Errno'.curl_error($curl);//捕抓异常
+        }
+        curl_close($curl); // 关闭CURL会话
+
+        //Log::debug("member:creditbll url: " . $request_url . " params: " . var_export($req, true). " result: " . var_export(json_decode($tmpInfo,true), true) );
+        return $tmpInfo; // 返回数据
+    }
+
+}

@@ -1,0 +1,73 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: yangge
+ * Date: 2018/1/23
+ * Time: 下午3:42
+ *
+ * Lib::factory("Logic_QianHai")->user_id(2423423)->action("RiskService")->getData();
+ * Lib::factory("Logic_QianHai")->user_id(2423423)->action("RiskService")->sendData();
+ * Lib::factory("Logic_QianHai")->user_id(2423423)->action("RiskService")->getDecision();
+ *
+ */
+class Lib_CreditReview_Emay extends Lib_CreditReview_RiskCommon
+{
+
+    public $user_id;
+    public $user;
+    protected $action;
+
+    const PROVIDER = "Emay";
+    const ACTION = 'RiskService';
+
+    public function user_id($user_id)
+    {
+        $this->user_id = $user_id;
+        $user = Model::factory("User")->get_one($user_id);
+
+        $this->user = $user;
+        return $this;
+    }
+
+
+    public function getData()
+    {
+        $data = array('Phone' => $this->user['mobile']);
+        $res = Lib::factory("Risk_API")->user_id($this->user_id)->anti("Emay")->query('execute', $data)->execute()->asJson();
+        return $res;
+    }
+
+    public function sendData($action = null)
+    {
+        if($action){
+            $this->action = $action;
+        }else{
+            $this->action = self::ACTION;
+        }
+        $result = Model::factory("Emay_Data")->get_data($this->user_id);
+        $data = [
+            'data' => json_decode($result['response_data']),
+            'provider' => self::PROVIDER,
+            'action' => $this->action,
+        ];
+        $this->send($data, self::PROVIDER, $this->action);
+
+        return $this;
+    }
+
+    //第三步 获取决策
+
+    public function getDecision($action=null)
+    {
+        if($action){
+            $this->action = $action;
+        }else{
+            $this->action = self::ACTION;
+        }
+        $this->get(self::PROVIDER, $this->action);
+
+        return $this;
+    }
+
+}

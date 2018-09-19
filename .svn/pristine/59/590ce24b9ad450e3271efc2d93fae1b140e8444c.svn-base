@@ -1,0 +1,246 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: wangchao
+ * Date: 2018/1/11
+ * Time: 下午9:15
+ *
+ * 魔蝎-回调
+ */
+class Controller_Notify_Moxie extends Controller
+{
+
+    public function _init()
+    {
+        header("HTTP/1.1 201 Created");
+
+    }
+
+    //任务创建通知
+    public function action_TaskSubmit()
+    {
+
+        $action = $_SERVER;
+
+        $this->_init();
+        $post = file_get_contents("php://input", true);
+
+        $log = new MyLog(DOCROOT.'protected/logs');
+        $log->write(array(array('body' => $post, 'time' => time())),
+            "time MoxieCallback_".$action['HTTP_ACTION']."_TaskSubmit REQUEST: \r\nbody \r\n");
+
+        $data = json_decode($post, true);
+//        var_dump($data);die;
+
+        Model::factory('Moxie_Data')->add_resp_data([
+            'resp_data' => json_encode($data), 'provider' => 'Moxie', 'type' => 'TaskSubmit', 'state' => 2,
+            'userid' => $data['user_id'], 'tc_no' => '', 'action' => $action['HTTP_ACTION'],
+        ]);
+
+        $res = Model::factory('Moxie_DataItem')->get_data_item($data['user_id']);
+        if ($res) {
+            Model::factory('CreditInfo_Step')->change($res['extends'], Model_CreditInfo_Step::TAOBAO,
+                Model_CreditInfo_Step::COMPLETE);
+        }
+        exit;
+
+    }
+
+    //任务授权登录状态通知
+    public function action_Task()
+    {
+
+        $action = $_SERVER;
+        $this->_init();
+        $post = file_get_contents("php://input", true);
+        $log = new MyLog(DOCROOT.'protected/logs');
+        $log->write(array(array('body' => $post, 'time' => time())),
+            "time MoxieCallback_".$action['HTTP_ACTION']."_Task REQUEST: \r\nbody \r\n");
+
+        $data = json_decode($post, true);
+
+        Model::factory('Moxie_Data')->add_resp_data([
+            'resp_data' => json_encode($data), 'provider' => 'Moxie', 'type' => 'Task', 'state' => 3,
+            'userid' => $data['user_id'], 'tc_no' => '', 'action' => $action['HTTP_ACTION'],
+        ]);
+        exit;
+    }
+
+    //任务采集失败通知
+    public function action_TaskFail()
+    {
+        $action = $_SERVER;
+        $this->_init();
+        $post = file_get_contents("php://input", true);
+        $log = new MyLog(DOCROOT.'protected/logs');
+        $log->write(array(array('body' => $post, 'time' => time())),
+            "time MoxieCallback_".$action['HTTP_ACTION']."_TaskFail REQUEST: \r\nbody \r\n");
+
+        $data = json_decode($post, true);
+
+        Model::factory('Moxie_Data')->add_resp_data([
+            'resp_data' => json_encode($data), 'provider' => 'Moxie', 'type' => 'TaskFail', 'state' => 32,
+            'userid' => $data['user_id'], 'tc_no' => '', 'action' => $action['HTTP_ACTION'],
+        ]);
+        exit;
+    }
+
+    //账单通知
+    public function action_Bill()
+    {
+        $action = $_SERVER;
+        $this->_init();
+        $post = file_get_contents("php://input", true);
+        $log = new MyLog(DOCROOT.'protected/logs');
+        $log->write(array(array('body' => $post, 'time' => time())),
+            "time MoxieCallback_".$action['HTTP_ACTION']."_TaskBill REQUEST: \r\nbody \r\n");
+        $data = json_decode($post, true);
+
+        if ($action['HTTP_ACTION'] == 'Zhixing') {
+            if ($data['count'] > 0) {
+                $data_item = Model::factory('Moxie_DataItem')->get_data_item(['userid' => $data['user_id']]);
+                if ($data_item) {
+                    //写入队列
+                    Model::factory('Moxie_Queue')->add_data_queue([
+                        'task_id' => $data['task_id'], 'user_id' => $data['user_id'], 'state' => 5,
+                        'action' => 'Zhixing', 'tc_no' => $data_item['tc_no'], 'mobile' => '',
+                    ]);
+                }
+            }
+        } elseif ($action['HTTP_ACTION'] == 'Chsi') {
+            $data_item = Model::factory('Moxie_DataItem')->get_data_item(['userid' => $data['user_id']]);
+            Model::factory('Moxie_Queue')->add_data_queue([
+                'task_id' => $data['task_id'], 'user_id' => $data['user_id'], 'state' => 5, 'action' => 'Chsi',
+                'tc_no' => $data_item['tc_no'], 'mobile' => '',
+            ]);
+        }
+
+        Model::factory('Moxie_Data')->add_resp_data([
+            'resp_data' => json_encode($data), 'provider' => 'Moxie', 'type' => 'Bill', 'state' => 4,
+            'userid' => $data['user_id'], 'tc_no' => '', 'action' => $action['HTTP_ACTION'],
+        ]);
+        exit;
+    }
+
+    //用户报告通知
+    public function action_Report()
+    {
+
+        $action = $_SERVER;
+        $this->_init();
+        $post = file_get_contents("php://input", true);
+        $log = new MyLog(DOCROOT.'protected/logs');
+        $log->write(array(array('body' => $post, 'time' => time())),
+            "time MoxieCallback_".$action['HTTP_ACTION']."_Report REQUEST: \r\nbody \r\n");
+
+        $data = json_decode($post, true);
+
+        Model::factory('Moxie_Data')->add_resp_data([
+            'resp_data' => json_encode($data), 'provider' => 'Moxie', 'type' => 'Report', 'state' => 5,
+            'userid' => $data['user_id'], 'tc_no' => '', 'action' => $action['HTTP_ACTION'],
+        ]);
+
+        $data_item = Model::factory('Moxie_DataItem')->get_data_item(['userid' => $data['user_id']]);
+        if ($data_item) {
+            //写入队列
+            if ($action['HTTP_ACTION'] == 'Email') {
+                Model::factory('Moxie_Queue')->add_email_data_queue([
+                    'task_id' => $data['task_id'], 'email_id' => $data['email_id'], 'user_id' => $data['user_id'],
+                    'state' => 5, 'action' => 'Email', 'tc_no' => $data_item['tc_no'], 'mobile' => '',
+                ]);
+            } elseif ($action['HTTP_ACTION'] == 'Mno') {
+                Model::factory('Moxie_Queue')->add_data_queue([
+                    'task_id' => $data['task_id'], 'mobile' => $data['mobile'], 'user_id' => $data['user_id'],
+                    'state' => 5, 'action' => 'Mno', 'tc_no' => $data_item['tc_no'],
+                ]);
+            } else {
+                Model::factory('Moxie_Queue')->add_data_queue([
+                    'task_id' => $data['task_id'], 'user_id' => $data['user_id'], 'state' => 5,
+                    'action' => $action['HTTP_ACTION'], 'tc_no' => $data_item['tc_no'], 'mobile' => '',
+                ]);
+            }
+
+        }
+        exit;
+    }
+
+    //app或h5端返回需要检测用户
+    public function action_AppQuery()
+    {
+
+        //$response_array['query_result'] = 'unknown';
+        //$this->response_json($response_array,"1000","查询成功");
+
+        $response_array = [];
+        if (!empty($_REQUEST)) {
+            $res = Model::factory('Moxie_DataItem')->get_data_item($_REQUEST['userId']);
+            if ($res) {
+                $rs = Model::factory('Risk_QueryRecord')->get_one_by_array(['user_id' => $res['extends']]);
+                if ($rs) {
+                    if ($_REQUEST['taskType'] == 'taobao') {
+                        $module = Model_CreditInfo_Step::TAOBAO;
+                    } elseif ($_REQUEST['taskType'] == 'jingdong') {
+                        $module = Model_CreditInfo_Step::JINGDONG;
+                    } elseif ($_REQUEST['taskType'] == 'bank') {
+                        $module = Model_CreditInfo_Step::Bank;
+                    } elseif ($_REQUEST['taskType'] == 'chsi') {
+                        $module = Model_CreditInfo_Step::Chsi;
+                    } elseif ($_REQUEST['taskType'] == 'fund') {
+                        $module = Model_CreditInfo_Step::FUND;
+                    } elseif ($_REQUEST['taskType'] == 'security') {
+                        $module = Model_CreditInfo_Step::SOCIAL_SECURITY;
+                    } elseif ($_REQUEST['taskType'] == 'zhixing') {
+                        $module = Model_CreditInfo_Step::SOCIAL_ZHIXING;
+                    } elseif ($_REQUEST['taskType'] == 'email') {
+                        $module = Model_CreditInfo_Step::Email;
+                    }else{
+                        $this->response_json([], "4006", "参数错误");
+                    }
+                    Model::factory('CreditInfo_Step')->update($res['extends'], $module, 2);   //更新ci_step 状态为2
+                    $ci_step = Model::factory('User')->get_ci_step($rs['user_id'], $module);
+                    if (isset($ci_step) && $ci_step['status'] == Model_CreditInfo_Step::COMPLETE) {
+                        $response_array['query_result'] = 'pass';
+                        $this->response_json($response_array, "1000", "查询成功");
+                    } else {
+                        $response_array['query_result'] = 'unknown';
+                        $this->response_json($response_array, "1000", "查询成功");
+                    }
+                } else {
+                    $this->response_json([], "4000", "流水号查询失败");
+                }
+
+            } else {
+                $this->response_json([], "4000", "接口异常");
+
+            }
+        } else {
+            $this->response_json([], "4006", "参数错误");
+        }
+    }
+
+    //格式化JSON返回
+    public function response_json($result, $code = true, $message = null)
+    {
+        $time_string = date('Y-m-d H:i:s');
+        $data = array(
+            'code' => $code,
+            'message' => $message ? $message : '',
+
+            'result' => $result,
+            'service' => array(
+                'time' => $time_string,
+            ),
+        );
+
+        $json = json_encode($data);
+
+        header('Content-type: application/json');
+        echo $json;
+        ob_flush();
+        exit;
+
+    }
+
+
+}

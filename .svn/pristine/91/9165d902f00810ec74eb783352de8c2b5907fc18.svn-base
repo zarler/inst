@@ -1,0 +1,25 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: yangge
+ * Date: 2018/1/9
+ * Time: 下午5:57
+ */
+class Model_Emay_Short extends Model
+{
+    const EMAY_MODULE = 'riskservice';
+    const STATUS_YES = 1;
+    const STATUS_NO = 2;
+
+
+    public function add_short($user_id,$module,$result)
+    {
+        return DB::insert("emay_short",array('user_id','module','status','create_time'))->values(array($user_id,$module,$result,time()))->execute();
+    }
+
+    public function get_one($user_id)
+    {
+        return DB::select("*")->from("emay_short")->where('user_id','=',$user_id)->execute()->current();
+    }
+}

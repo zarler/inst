@@ -1,0 +1,268 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 16/5/21
+ * Time: 上午2:19
+ *
+ * 授信信息 填写步骤与记录
+ *
+ */
+class Model_CreditInfo_Step extends Model_Database
+{
+
+
+    const INCOMPLETE = 1;       //未完成
+    const COMPLETE = 2;         //已完成
+    const EXPIRE = 3;           //过期状态
+    const ABNORMAL = 8;         //运营商以及第三方报错两次以上的状态
+    const RE_FILL = 10;         //已经提交过,但未达标,可重填
+
+    const WORK = 'work_info';
+    const HOME = 'home_info';
+    const TAOBAO = 'Taobao';
+    const JINGDONG = 'JD';
+    const MNO = 'Mno';
+    const CREDITCARDBILL = 'creditcardbill';
+    const PHONEBOOK = 'phone_book';
+    const SMS = 'sms_record';
+    const CALL = 'call_history';
+    const CONTACT = 'contact';
+    const PICAUTH = 'picauth';
+    const FACEID = 'faceid';
+    const LOCATION = 'location';
+    const ZHIMACREDIT = 'zhimacredit';
+
+    const FACEID_COUNT = 'faceid_count';        //FaceID 计数字段
+    const PICAUTH_COUNT = 'picauth_count';      //照片审核 计数字段
+    const LOCATION_COUNT = 'location_count';    //地理位置 计数字段
+    const BANKCARD_AUTH_COUNT = 'bankcard_auth_count';  //银行卡验卡
+    const CREDITCARD_AUTH_COUNT = 'creditcard_auth_count';  //银行卡验卡
+
+
+    const BANK = 'Bank';    //魔蝎网银
+    const CHSI = 'Chsi';    //魔蝎学信网
+    const EMAIL = 'Email';  //魔蝎邮箱
+    const FUND = 'Fund';    //魔蝎公积金
+    const SOCIAL_SECURITY = 'SocialSecurity';    //魔蝎社保
+    const ZHIXING = 'Zhixing';    //魔蝎法院被执行人
+
+
+    const ALLOW_ADD_COLUMN = array(        //允许累加的字段
+        self::FACEID_COUNT,
+        self::PICAUTH_COUNT,
+        self::LOCATION_COUNT,
+        self::BANKCARD_AUTH_COUNT,
+        self::CREDITCARD_AUTH_COUNT,
+    );
+
+
+    const USER_CI_STEP = array(
+        self::WORK => 1,
+        self::HOME => 1,
+        self::TAOBAO => 1,
+        self::JINGDONG => 1,
+        self::MNO => 1,
+        self::CREDITCARDBILL => 1,
+        self::PHONEBOOK => 1,
+        self::SMS => 1,
+        self::CALL => 1,
+        self::CONTACT => 1,
+        self::ZHIMACREDIT => 1,
+        self::PICAUTH => 1,
+        self::FACEID => 1,
+        self::LOCATION => 1,
+        self::ZHIMACREDIT => 1,
+        self::FACEID_COUNT => 1,
+        self::PICAUTH_COUNT => 1,
+        self::BANKCARD_AUTH_COUNT => 1,
+        self::CREDITCARD_AUTH_COUNT => 1,
+        self::BANK => 1,
+        self::CHSI => 1,
+        self::EMAIL => 1,
+        self::FUND => 1,
+        self::SOCIAL_SECURITY => 1,
+        self::ZHIXING => 1,
+    );
+
+    public function get_one($user_id, $module = null)
+    {
+        if (!$user_id) {
+            return false;
+        }
+        $query = DB::select()->from('ci_step')->where('user_id', '=', $user_id);
+        if ($module) {
+            $query->and_where('module', '=', $module);
+        }
+
+        return $query->order_by('id', 'ASC')->execute()->current();
+    }
+
+    public function get_all($user_id)
+    {
+        if ($user_id < 1) {
+            return false;
+        }
+        $query = DB::select()->from('ci_step')->where('user_id', '=', $user_id);
+        $result = $query->order_by('id', 'ASC')->execute()->as_array();
+        if (!empty($result)) {
+            foreach ($result as $k => $v) {
+                $result_array[$v['module']] = $v['status'];
+                $result_array['user_id'] = $v['user_id'];
+            }
+
+            return $result_array;
+        } else {
+            return false;
+        }
+
+    }
+
+    public function get_pass($user_id)
+    {
+        if ($user_id < 1) {
+            return false;
+        }
+        $query = DB::select()->from('ci_step')->where('user_id', '=', $user_id);
+        $result = $query->order_by('id', 'ASC')->execute()->as_array();
+        if (!empty($result)) {
+            foreach ($result as $k => $v) {
+                $result_array[$v['module']] = $v['pass_time'];
+                $result_array['user_id'] = $v['user_id'];
+            }
+
+            return $result_array;
+        } else {
+            return false;
+        }
+    }
+
+
+    /** 创建
+     * @param $user_id
+     * @param $module
+     * @param null $array
+     * @return bool
+     */
+    public function create($user_id, $module = null)
+    {
+        if ($user_id < 1) {
+            return false;
+        }
+        if ($module) {
+            list($insert_id, $affected_rows) = DB::insert('ci_step',
+                array('user_id', 'module', 'status', 'create_time'))->values(array(
+                $user_id, $module, 1, time(),
+            ))->execute();
+        } else {
+            foreach (self::USER_CI_STEP as $k => $v) {
+                if (!$this->get_one($user_id, $k)) {
+                    list($insert_id, $affected_rows) = DB::insert('ci_step',
+                        array('user_id', 'module', 'status', 'create_time'))->values(array(
+                        $user_id, $k, $v, time(),
+                    ))->execute();
+                }
+            }
+        }
+
+        return true;
+    }
+
+
+    /** 更新
+     * @param $user_id
+     * @param $array
+     * @param $module
+     * @return bool
+     */
+    public function update($user_id, $array = array(), $module)
+    {
+        if ($user_id < 1 || !$array) {
+            return false;
+        }
+        Lib::factory('TCCache_User')->user_id($user_id)->remove();//CACHE ----- [DELETE]
+        return null !== DB::update('ci_step')->set($array)->where('user_id', '=', (int)$user_id)->and_where('module',
+                '=', $module)->execute();
+    }
+
+//    public function update($user_id, $module, $status)
+//    {
+//        if ($user_id < 1 || !$module || !$status) {
+//            return false;
+//        }
+//        Lib::factory('TCCache_User')->user_id($user_id)->remove();//CACHE ----- [DELETE]
+//        return null !== DB::update('ci_step')->set(array('status' => $status))->where('user_id', '=',
+//                (int)$user_id)->and_where('module', '=', $module)->execute();
+//    }
+
+
+    /** 更改单个字段值
+     * @param $user_id
+     * @param $col
+     * @param $value
+     * @return bool
+     */
+    public function change($user_id, $array = array(), $module)
+    {
+        if ($user_id < 1 || !$module || count($array) < 1) {
+            return false;
+        }
+
+        return $this->update($user_id, $array, $module);
+    }
+
+
+    /** 字段做累加操作
+     * @param $user_id
+     * @param $col
+     * @param $value
+     * @return bool
+     */
+    public function add_up($user_id, $col, $value = null)
+    {
+        if ($user_id < 1 || empty($col) || $value === null) {
+            return false;
+        }
+        if (!in_array($col, self::ALLOW_ADD_COLUMN)) {
+            return false;
+        }
+        $result = $this->get_one($user_id,$col);
+        if($result){
+            return DB::update('ci_step')->and_where('user_id', '=', $user_id)->and_where('module','=',$col)->set(array('count_num' => DB::expr('count_num + '.$value)))->execute();
+        }else{
+            $res = $this->create($user_id,$col);
+            return $res;
+        }
+
+
+
+    }
+
+
+    /** 字段做累加操作v2
+     * @param $user_id
+     * @param $col
+     * @param $value
+     * @return bool
+     */
+    public function value_add($user_id, $col, $value)
+    {
+        if ($user_id < 1 || empty($col) || empty($value)) {
+            return false;
+        }
+        if (!in_array($col, self::ALLOW_ADD_COLUMN)) {
+            return false;
+        }
+
+        $result = $this->get_one($user_id,$col);
+        if($result){
+            return DB::update('ci_step')->and_where('user_id', '=', $user_id)->and_where('module','=',$col)->set(array('count_num' => DB::expr('count_num + '.$value)))->execute();
+        }else{
+            $res = $this->create($user_id,$col);
+            return $res;
+        }
+    }
+
+}

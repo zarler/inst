@@ -1,0 +1,233 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 16/10/14
+ * Time: 下午2:04
+ *
+ * 快金 评分处理
+ *
+ *  对评分过程封装,对外提供单一获取结果方法.
+ */
+class Lib_TCCredit_Score {
+    const INIT = Model_AntiFraud::INIT;             //初始值(未查询)
+    const PASS = Model_AntiFraud::PASS;             //通过
+    const UNPASS = Model_AntiFraud::UNPASS;         //未通过
+
+
+    const MODULES = [                    //模块名与对应方法
+        'BaiRong' => [                      //百融
+            'scorepettycashv1' =>          [   //黑盒评分(消费金融小额线上现金贷客群评分)
+                'lib' =>  'AntiFraud_BaiRong',
+                'score_func' =>  'get_anti_fraud',
+                'log_type'=>[
+                    'first'=>[
+                        'reduce_ensure' => Model_AntiFraud_Log::TYPE_BAIRONG_SCOREPETTYCASHV1_REDUCE_ENSURE, //(首次)百融小额现金贷黑盒评分  降担保
+                        'fast_loan'=>Model_AntiFraud_Log::TYPE_BAIRONG_SCOREPETTYCASHV1_FAST_LOAN, //(首次)百融小额现金贷黑盒评分  极速贷
+                    ],
+                    'again'=>[
+                        'reduce_ensure'=>Model_AntiFraud_Log::TYPE_BAIRONG_SCOREPETTYCASHV1_REDUCE_ENSURE_AGAIN, //(再次)百融小额现金贷黑盒评分  降担保
+                        'fast_loan' =>Model_AntiFraud_Log::TYPE_BAIRONG_SCOREPETTYCASHV1_FAST_LOAN_AGAIN, //(再次)百融小额现金贷黑盒评分  极速贷
+                    ],
+                ],
+
+            ],
+        ],
+        'TongDun'=> [                   //同盾
+            'credit_score' =>          [   //模型评分
+                'lib' =>  'AntiFraud_TongDun',
+                'score_func' =>  'get_apply_model',
+                'log_type'=>[
+
+                ],
+
+            ],
+
+
+
+        ],
+        'Rong360_XiGua' => [           //融360天机 西瓜分
+            'TianJiScore' =>          [   //黑盒评分
+                'lib' =>  'Rong360_XiGua',
+                'score_func' =>  'get_score',
+                'log_type'=>[
+                    'first'=>[
+                        'reduce_ensure' => Model_AntiFraud_Log::TYPE_RONG360_SCORE_REDUCE_ENSURE, //(首次)黑盒评分  降担保
+                        'fast_loan'=>Model_AntiFraud_Log::TYPE_RONG360_SCORE_FAST_LOAN, //(首次)黑盒评分  极速贷
+                    ],
+                    'again'=>[
+                        'reduce_ensure'=>Model_AntiFraud_Log::TYPE_RONG360_SCORE_REDUCE_ENSURE_AGAIN, //(再次)黑盒评分  降担保
+                        'fast_loan' =>Model_AntiFraud_Log::TYPE_RONG360_SCORE_FAST_LOAN_AGAIN, //(再次)黑盒评分  极速贷
+                    ],
+                ],
+
+            ],
+            'TianJiScoreNew' =>          [   //新黑盒评分(通过运营商数据抓取更新后的评分)
+                'lib' =>  'Rong360_XiGua',
+                'score_func' =>  'get_score_new',
+                'log_type'=>[
+                    'first'=>[
+                        'reduce_ensure' => Model_AntiFraud_Log::TYPE_RONG360_SCORE_REDUCE_ENSURE, //(首次)黑盒评分  降担保
+                        'fast_loan'=>Model_AntiFraud_Log::TYPE_RONG360_SCORE_FAST_LOAN, //(首次)黑盒评分  极速贷
+                    ],
+                    'again'=>[
+                        'reduce_ensure'=>Model_AntiFraud_Log::TYPE_RONG360_SCORE_REDUCE_ENSURE_AGAIN, //(再次)黑盒评分  降担保
+                        'fast_loan' =>Model_AntiFraud_Log::TYPE_RONG360_SCORE_FAST_LOAN_AGAIN, //(再次)黑盒评分  极速贷
+                    ],
+                ],
+
+            ],
+            'TianJiScore_v21' =>          [   //新评分v21(通过运营商数据抓取更新后的评分)
+                'lib' =>  'Rong360_XiGua',
+                'score_func' =>  'get_score_v21',
+                'log_type'=>[
+                    'first'=>[
+                        'reduce_ensure' => Model_AntiFraud_Log::TYPE_RONG360_SCORE_REDUCE_ENSURE, //(首次)黑盒评分  降担保
+                        'fast_loan'=>Model_AntiFraud_Log::TYPE_RONG360_SCORE_FAST_LOAN, //(首次)黑盒评分  极速贷
+                    ],
+                    'again'=>[
+                        'reduce_ensure'=>Model_AntiFraud_Log::TYPE_RONG360_SCORE_REDUCE_ENSURE_AGAIN, //(再次)黑盒评分  降担保
+                        'fast_loan' =>Model_AntiFraud_Log::TYPE_RONG360_SCORE_FAST_LOAN_AGAIN, //(再次)黑盒评分  极速贷
+                    ],
+                ],
+
+            ],
+        ],
+
+        'TCredit' => [           //天创模型
+            'RiskResult' =>          [   //旧天天创模型
+                'lib' =>  'TCredit_RiskResult',
+                'score_func' =>  'get_result',
+                'log_type'=>[
+                    'first'=>[
+                        'reduce_ensure' => Model_AntiFraud_Log::TYPE_TCREDIT_RISK_RESULT_REDUCE_ENSURE, //(首次)评分  降担保
+                        'fast_loan'=>Model_AntiFraud_Log::TYPE_TCREDIT_RISK_RESULT_FAST_LOAN, //(首次)评分  极速贷
+                    ],
+                    'again'=>[
+                        'reduce_ensure'=>Model_AntiFraud_Log::TYPE_TCREDIT_RISK_RESULT_REDUCE_ENSURE_AGAIN, //(再次)评分  降担保
+                        'fast_loan' =>Model_AntiFraud_Log::TYPE_TCREDIT_RISK_RESULT_FAST_LOAN_AGAIN, //(再次)评分  极速贷
+                    ],
+                ],
+
+            ],
+            'credit_score' =>          [   //新天创银联模型
+                'lib' =>  'TCredit_RiskResult',
+                'score_func' =>  'get_result',
+                'log_type'=>[
+                    'first'=>[
+                        'reduce_ensure' => Model_AntiFraud_Log::TYPE_TCREDIT_RISK_RESULT_REDUCE_ENSURE, //(首次)评分  降担保
+                        'fast_loan'=>Model_AntiFraud_Log::TYPE_TCREDIT_RISK_RESULT_FAST_LOAN, //(首次)评分  极速贷
+                    ],
+                    'again'=>[
+                        'reduce_ensure'=>Model_AntiFraud_Log::TYPE_TCREDIT_RISK_RESULT_REDUCE_ENSURE_AGAIN, //(再次)评分  降担保
+                        'fast_loan' =>Model_AntiFraud_Log::TYPE_TCREDIT_RISK_RESULT_FAST_LOAN_AGAIN, //(再次)评分  极速贷
+                    ],
+                ],
+
+            ],
+        ],
+
+
+
+
+    ];
+    const MODELS =[                 //反欺诈模块组 Model名字
+        'BaiRong' => 'AntiFraud_BaiRong',
+        'TongDun' => 'AntiFraud_TongDun',
+        'Rong360_XiGua' => 'Rong360_XiGua',
+        'TCredit' => 'TCredit_RiskResult',
+    ];
+
+
+
+
+
+
+    protected $user;                    //用户记录
+    protected $model = [];              //MODEL对象数组
+    protected $record = [];             //简表结果
+    protected $result = 0;
+    protected $result_array = array();  //附属属性
+    protected $provider = '';           //服务供应者  BaiRong百融   TongDun同盾
+    protected $module = '';             //调用模块
+    protected $api_query = FALSE;       //是否请求api
+
+
+    public function __construct($user_id=0) {
+        if($user_id>0){
+            $this->user_id($user_id);
+        }
+    }
+
+    //初始化用户
+    public function user_id($user_id){
+        $this->user = Model::factory('User')->get_one($user_id);
+        return $this;
+    }
+
+    public function module($provider,$module){
+        if(self::MODULES[$provider][$module]!==NULL){
+            $this->provider = $provider;
+            $this->module = $module;
+        }
+
+        return $this;
+    }
+
+
+    /**
+     * 从数据库中读出结果
+     * @return array
+     */
+    public function get_record(){
+        if(isset($this->user['id']) && $this->provider && $this->module) {
+            $this->record = Model::factory(self::MODELS[$this->provider])->get_short_one_by_user_id($this->user['id'],$this->module);
+        }
+        return $this->record;
+    }
+
+
+    /**
+     * 返回结论(通过/未通过) 如果数据库中没有记录自动通过API请求并计算保存结论
+     * @return int
+     */
+    public function get_result(){
+        if(isset($this->user['id']) && $this->provider && $this->module) {
+            $this->get_record();
+            if (!isset($this->record['result']) || $this->record['result'] == self::INIT) {
+                $this->result = $this->flush_result();//从API计算结果
+            } elseif (isset($this->record['result'])) {//数据库读出结果
+                $this->result = $this->record['result'];
+            }
+        }
+        return $this->result > 0 ? (int)$this->result : 0  ;
+    }
+
+
+    /**
+     * 强制刷新结果
+     * @return int
+     */
+    public function flush_result(){
+        if(isset($this->user['id']) && $this->provider && $this->module) {
+            $this->api_query = TRUE;
+            $func = self::MODULES[$this->provider][$this->module]['score_func'];
+            $result = Lib::factory(self::MODULES[$this->provider][$this->module]['lib'])->user_id($this->user['id'])-> $func($this->module);
+            if(is_array($result)){
+                $this->result_array =$result;
+                $this->result = $result['result'];
+            }else{
+                $this->result = $result;
+            }
+
+        }
+        return $this->result;
+    }
+
+
+
+
+
+
+}

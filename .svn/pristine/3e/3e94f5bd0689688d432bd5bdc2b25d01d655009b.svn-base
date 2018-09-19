@@ -1,0 +1,49 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+
+/**
+ * Created by PhpStorm.
+ * Permission: chunyu
+ * Date: 18/1/17
+ * Time: 上午10:57
+ */
+class Model_BillArchive extends Model_Database {
+
+    protected $table = 'bill_archive';
+
+    public function create($array = [])
+    {
+
+        if (!isset($array['user_id']) || !isset($array['order_id']) ||
+            !isset($array['bill_id']) ||
+            !isset($array['repay_principal']) ||
+            !isset($array['repay_interest'])
+        ) {
+            return false;
+        }
+
+        $data = [
+            'bill_id' => (int)$array['bill_id'],
+            'order_id' => (int)$array['order_id'],
+            'user_id' => (int)$array['user_id'],
+            'repay_principal' => $array['repay_principal'],//当期本金存档
+            'repay_interest' => round($array['repay_interest'], 2),//当期利息存档
+            'repay_management' => round($array['repay_management'], 2),//当期管理费存档
+            'repay_damage' => round($array['repay_damage'], 2),//提前还款违约金存档
+            'day_penalty_rate' => $array['day_penalty_rate'],//罚息日利率存档
+            'day_late_fee_rate' => $array['day_late_fee_rate'],//滞纳金日利率存档
+            'create_time' => time(),
+        ];
+
+
+        list($new_id, $row) = DB::insert($this->table, array_keys($data))
+            ->values(array_values($data))
+            ->execute();
+
+        return $new_id;
+
+    }
+
+
+
+}

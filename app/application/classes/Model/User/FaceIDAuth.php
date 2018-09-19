@@ -1,0 +1,101 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 16/6/2
+ * Time: 上午2:48
+ *
+ * FACEID图片与相似度计算结果返回
+ */
+class Model_User_FaceIDAuth extends Model_Database{
+
+
+    const STATUS_VERIFIED = 1;		//已验证
+    const STATUS_FAILED= 2;			//验证失败
+    const STATUS_READY = 3;			//待审核
+    const STATUS_CHECKING = 4;		//审核中
+    const STATUS_EXPIRE = 5;        //过期
+
+    const AUTO_PASS_RATE = 61;     //自动通过(活体比对分数)
+    const AUDIT_RATE = 40;         //人工范围
+
+    const IDENTITY_PASS_RATE = 61;   //公安部网纹照对比活体
+
+    const UPLOAD_MAX_SIZE = 300000;   //上传图片最大尺寸限制  300KB
+
+    /** 创建
+     * @param $user_id
+     * @param $array
+     * @return bool
+     */
+    public function create($user_id,$array){
+        if( $user_id<1 || !isset($array['pic1']) || !isset($array['pic2']) || !isset($array['pic3']) || !isset($array['pic4'])
+            || !isset($array['ocr_pic']) || !isset($array['identity_code']) || !isset($array['name']) || !isset($array['birthday']) || !isset($array['gender'])
+            || !isset($array['race']) || !isset($array['address']) || !isset($array['score']) ||  !isset($array['req_data'])
+            ||  !isset($array['ocr_back_pic']) ||  !isset($array['issued'])||  !isset($array['valid_date'])
+        ){
+            return FALSE;
+        }
+
+        $pic1 = $array['pic1'];
+        $pic2 = $array['pic2'];
+        $pic3 = $array['pic3'];
+        $pic4 = $array['pic4'];
+        $ocr_pic = $array['ocr_pic'];
+        $ocr_back_pic = $array['ocr_back_pic'];
+        $issued = $array['issued'];
+        $valid_date = $array['valid_date'];
+        $name = $array['name'];
+        $identity_code = $array['identity_code'];
+        $birthday = $array['birthday'];
+        $gender = $array['gender'];
+        $race = $array['race'];
+        $address = $array['address'];
+        $score = $array['score'];
+        $req_data = $array['req_data'];
+        $status = $array['status'];
+
+        $create_time = isset($array['create_time']) && $array['create_time']>0 ? (int)$array['create_time'] : time() ;
+
+        list($insert_id,$affected_rows)=DB::insert("user_faceidauth",array(
+            'user_id','name','identity_code','birthday','gender','race','address','pic1','pic2','pic3','pic4','ocr_pic','ocr_back_pic','issued','valid_date','score','req_data','status','create_time'))
+            ->values(array(
+                $user_id, $name, $identity_code, $birthday, $gender, $race, $address, $pic1, $pic2, $pic3, $pic4, $ocr_pic,$ocr_back_pic,$issued,$valid_date, $score, $req_data, $status, $create_time))
+            ->execute();
+
+        return $insert_id>0;
+    }
+
+    public function get_by_user_id($user_id,$status=NULL){
+        if($status===NULL){
+            $status = array(self::STATUS_VERIFIED,self::STATUS_CHECKING);
+        }else{
+            if(!is_array($status)){
+                $status = array($status);
+            }
+        }
+        return DB::select()->from('user_faceidauth')->where('user_id','=',(int)$user_id)->and_where('status','IN',$status)->execute()->as_array();
+    }
+
+    public function get_one_by_user_id($user_id){
+        if(!$user_id){
+            return FALSE;
+        }
+        return DB::select()->from('user_faceidauth')->where('user_id','=',(int)$user_id)->execute()->current();
+    }
+
+    /** 更改数据
+     * @param $id
+     * @param array $array
+     * @return bool
+     */
+    public function update($id,$array=array()){
+        if(!$id){
+            return FALSE;
+        }
+//        echo DB::update('user_faceidauth')->set($array)->where('user_id','=',$id)->compile();
+        return NULL !== DB::update('user_faceidauth')->set($array)->where('user_id','=',$id)->execute();
+    }
+
+}

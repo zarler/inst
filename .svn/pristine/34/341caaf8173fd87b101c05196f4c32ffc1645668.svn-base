@@ -1,0 +1,7 @@
+<ul class="nav nav-tabs">
+    {{foreach from=$navres item=val }}
+    <li {{if $typeid==$val.typeid}}class="active"{{/if}}><a href="/{{$_controller}}/Index?typeid={{$val.typeid}}">{{$val.typename}}</a></li>
+    {{/foreach}}
+    <li {{if $_action=='Add'}}class="active"{{/if}}><a href="/{{$_controller}}/Add">添加变量</a></li>
+    <li {{if $_action=='Recovery'}}class="active"{{/if}}><a href="/{{$_controller}}/Recovery">变量回收</a></li>
+</ul>

@@ -1,0 +1,29 @@
+<<<<<<< .mine
+{
+	"require": {
+		"phpunit/phpunit": "3.7.24 - 4",
+		"phing/phing": "dev-master"
+	}
+}
+||||||| .r0
+=======
+{
+	"require": {
+		"smarty/smarty": "^3.1",
+		"phpunit/phpunit": "^5.7",
+		"phpmailer/phpmailer": "^6.0",
+		"symfony/filesystem": "^3.4",
+		"phpoffice/phpexcel": "^1.8",
+		"kohana/core": "^3.3",
+		"kohana/codebench": "^3.3",
+		"kohana/database": "^3.3",
+		"kohana/image": "^3.3",
+		"kohana/orm": "^3.3",
+		"kohana/auth": "^3.3",
+		"kohana/minion": "^3.3",
+		"kohana/cache": "^3.3",
+		"tecnickcom/tcpdf": "^6.2",
+		"predis/predis": "^1.1"
+	}
+}
+>>>>>>> .r253

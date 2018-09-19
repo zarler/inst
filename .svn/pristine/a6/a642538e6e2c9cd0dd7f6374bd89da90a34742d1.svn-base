@@ -1,0 +1,122 @@
+<?php defined('SYSPATH') OR die('No direct script access.');
+/**
+ * 站点配置 config 写在这里面可多纬
+ *
+ * 授信URL APP & WEB
+ */
+return [
+    'app_phonebook' => [
+        'start' => 'app://app.inst/Credit/AppPhonebookCollect',
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//手机电话本采集
+
+    'app_callhistory' => [
+        'start' => 'app://app.inst/Credit/AppCallHistoryCollect',
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//手机通话记录采集
+
+    'app_sms' => [
+        'start' => 'app://app.inst/Credit/AppSmsCollect',
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//手机短信采集
+
+    'app_location' => [
+        'start' => 'app://app.inst/Credit/LocationCollect',
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//地理位置采集
+
+    'app_authorize' => [
+        'start' => 'app://app.inst/Credit/AppAuthorize',
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//应用授权:
+
+    'app_homeinfo' => [
+        'start' => 'v/Chedit/HomeInfo',
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//居住信息
+
+    'app_faceid' => [
+        'start' => 'app://app.inst/Credit/FaceIdCheck',
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//人脸识别
+
+    'app_mno' => [
+        'start' => 'app://app.inst/Credit/MNOAuth',
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//运营商认证
+
+    'app_bankcard' => [
+        'start' => 'app://app.inst/BankCard/Add',
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//绑定银行卡
+
+    'app_contact' => [
+        'start' => 'v/Chedit/EmergencyContact',
+        //http://m.inst.cn/RegisterApp/Company?target_token={target_token}
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//紧急联系人
+
+    'app_work' => [
+        'start' => 'v/Chedit/WorkInfo',
+        //http://m.inst.cn/RegisterApp/Company?target_token={target_token}
+        'success' => '',
+        'failed' => '',
+        'group' => '',
+    ],//工作信息
+
+    'app_creditcardbill' => [
+        'start' => 'app://app.inst/CreditCard/bill',
+        'success' => '',
+        'failed' => '',
+        'group' => 'no',
+    ],//信用卡账单
+
+    'app_jingdong' => [
+        'start' => 'app://app.inst/CreditCard/jingdong',
+        'success' => '',
+        'failed' => '',
+        'group' => 'no',
+    ],//京东
+
+    'app_taobao' => [
+        'start' => 'app://app.inst/CreditCard/taobao',
+        'success' => '',
+        'failed' => '',
+        'group' => 'no',
+    ],//淘宝
+
+    'app_socialsecurity' => [
+        'start' => 'app://app.inst/CreditCard/socialsecurity',
+        'success' => '',
+        'failed' => '',
+        'group' => 'no',
+    ],//社保
+
+    'app_fund' => [
+        'start' => 'app://app.inst/CreditCard/fund',
+        'success' => '',
+        'failed' => '',
+        'group' => 'no',
+    ],//公积金
+];
+

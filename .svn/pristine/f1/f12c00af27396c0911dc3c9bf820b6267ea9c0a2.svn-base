@@ -1,0 +1,285 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: liujinsheng
+ * 文件上传读库模型
+ */
+//关键词常量
+define('NSQL','NSQL_');
+define('NSQL1',NSQL.'=');
+define('NSQL2',NSQL.'>');
+define('NSQL3',NSQL.'<');
+define('NSQL4',NSQL.'!=');
+define('NSQL6',NSQL.'>=');
+class Model_Upload_DbOperation extends Model_Database {
+    public $table = null;
+    public $config = null;
+
+    public function load_config(){
+        $this->config = Kohana::$config->load('database')->get('default');
+        if(!isset($this->config['table_prefix']) || empty($this->config['table_prefix'])  ) {
+            echo 'site config (config/database.php)  table_prefix is null.';
+            exit;
+        }
+    }
+
+    //单个组
+    public function get_one($group_id=null) {
+        return DB::select()->from('client')->where('client_id','=',addslashes($group_id))->where('status','=','1')->execute()->current();
+    }
+
+    //用户所关联的组
+    public function get_by_user_id($user_id=0) {
+        return DB::select()->from('group')->join('grouplink')->on('group.id','=','grouplink.group_id')->where('grouplink.user_id','=',intval($user_id))->execute('admin')->as_array();
+    }
+
+
+    //只取group_id
+    public function get_group_id_by_user_id($user_id=0) {
+        $rs = DB::select('group_id')->from('grouplink')->where('user_id','=',intval($user_id))->execute('admin')->as_array();
+        $array = array();
+        foreach($rs as $v ){
+            $array[] = $v['group_id'];
+        }
+        return $array;
+    }
+
+    //全部用户组
+    public function get_all() {
+        return DB::select()->from('group')->execute('admin')->as_array();
+    }
+
+    //添加
+    public function create($array=array()) {
+        if(isset($array['name']) && $array['name'] ) {
+            if(!isset($array['permission'])){
+                $array['permission'] = json_encode(array());
+            }
+            $name = trim($array['name']);
+            $description = $array['description'];
+            $permission = $array['permission'];
+
+            list($insert_id,$affected_rows) = DB::insert("group",array('name','description','permission'))
+                ->values( array($name,$description,$permission)	)->execute('admin');
+            if($insert_id) {
+                return $insert_id;
+            }
+        }
+        return FALSE;
+    }
+
+
+    //更改
+    public function update($group_id=0, $array=array()) {
+        if($group_id && isset($array['name']) && $array['name'] ) {
+            if(!isset($array['permission']) ){
+                $array['permission'] = json_encode(array());
+            }
+            $name = trim($array['name']);
+            $description = isset($array['description']) ? $array['description'] : '';
+            $permission = $array['permission'];
+            $rs=DB::update('group')
+                ->set(array('name'=>$name, 'description'=>$description, 'permission'=>$permission ))
+                ->where('id','=',$group_id)
+                ->execute('admin');
+            return TRUE;
+        }
+        return FALSE;
+    }
+
+
+    //删除
+    public function delete($group_id=0)
+    {
+        if($group_id>0){
+            $rs = DB::select('id')->from('group')->where('id','=',$group_id)->limit(1)->execute('admin')->current();
+            if( isset($rs['id']) && $rs['id']>0 ){
+                $this->delete_grouplink(0,$group_id);
+                return DB::delete('group')->where('id','=',$group_id)->execute('admin');
+            }
+        }
+        return FALSE;
+    }
+
+
+
+    /*
+     *获取数据列表
+     * 刘金生
+     *参数：$array为查询字段,$table查询表，$perpage查询个数，$where查询条件
+    */
+    public function get_list_sql($id='',$where_fields=array(),$fileds_arr=array(),$ext='order by order_sort desc ',$table) {
+
+        if(empty($this->config)){
+            $this->load_config();
+        }
+
+        if($table){
+            $this->table = $this->config['table_prefix'].$table;
+        }else{
+            return false;
+        }
+        if($id){
+            $where =  " and id = '".(int)$id."'"	;
+        }else{
+            $where = null;
+        }
+        if(is_array($where_fields) && $where_fields ){
+            foreach($where_fields as $key =>$value){
+                if(!isset($value)) continue;
+                if(stristr($value,NSQL)===false){
+                    $where .=  " and `$key` = '$value' ";
+                }else{
+                    $where .=  "and `$key` ".$this->ncc_sql($value);
+                }
+            }
+        }
+        if($fileds_arr){
+            $fileds_str='`'.implode('`,`',$fileds_arr).'`';
+        }
+        $fileds_str=$fileds_str?$fileds_str:' * ';
+        if($ext){
+            $where .=$ext;
+        }
+        $sql="select {$fileds_str} from `{$this->table}` where 1 $where  ";
+        return DB::query(Database::SELECT,$sql)->execute()->as_array();
+//        $fileds_str=$field?'`'.implode('`,`',$field).'`':'*';
+//        $query = DB::select($fileds_str)->from($table);
+//        if (count($where) > 0) {
+//            $query = $this->query_builder($query,$where);
+//        }
+//        $rs = $query->order_by('id')->limit($perpage)->execute()->as_array();
+//        return $rs;
+
+    }
+    public function  get_list($client_id) {
+        return DB::select('id','client_key')->from('client')->where('client_id','=',$client_id)->where('status','=','1')->execute()->current();
+    }
+
+
+
+    //查询统计
+    public function get_total($array=array()) {
+        $rs = DB::select(array(DB::expr('COUNT(*)'), 'total'))->from('group')->execute('admin')->current();
+        return isset($rs['total']) ? $rs['total'] : 0 ;
+    }
+
+
+
+    /**********************************************************
+     *  作者：刘李鹏
+     *  日期：2014年08月28日
+     *  目的：更新订单的状态
+     *  参数：解析newsnow的sql语法为标准语法
+     *  返回: String
+     *  备注：
+     ***********************************************************/
+    function ncc_sql($str){
+        global $ncc_sql_keywords;
+        if($ncc_sql_keywords){
+            foreach($ncc_sql_keywords as $key=>$ncc_sql_keyword){
+                $old=$ncc_sql_keyword;
+                $ncc_sql_keyword=str_replace(NSQL,'',$ncc_sql_keyword);
+                $str=str_replace($old,$ncc_sql_keyword,$str);
+
+            }
+        }
+        return  $str;
+    }
+
+
+    //设置管理员与组的关系
+    public function set_grouplink($user_id=0,$group_id=0) {
+        if(is_array($group_id)){
+            return $this->set_array_grouplink($user_id,$group_id);
+        }
+        if(!$this->check_grouplink($user_id,$group_id)) {
+            list($insert_id,$affected_rows)  = DB::insert('grouplink',array('user_id','group_id'))->values(array($user_id,$group_id))->execute('admin');
+            return $insert_id;
+        }
+        return FALSE;
+    }
+
+    //一对多
+    public function set_array_grouplink($user_id=0,$group_id=array()) {
+        if($user_id<1) {
+            return FALSE;
+        }
+        foreach($group_id as $v) {
+            if(is_integer($v) && !$this->check_grouplink($user_id,$v)) {
+                $this->set_grouplink($user_id,$v);
+            }
+        }
+    }
+
+    //检查
+    public function check_grouplink($user_id=0,$group_id=0){
+        return NULL != DB::select()->from('grouplink')->where('user_id','=',intval($user_id))->and_where('group_id','=',intval($group_id))->execute('admin')->current();
+    }
+
+
+    //删除权限关系
+    public function delete_grouplink($user_id=0,$group_id=0) {
+        if($user_id<1 && $group_id<1) {
+            return FALSE;
+        }
+        $query = DB::delete('grouplink');
+        if($user_id>0) {
+            $query->where('user_id','=',intval($user_id));
+        }
+        if($group_id>0) {
+            $query->where('group_id','=',intval($group_id));
+        }
+        return $query->execute('admin');
+    }
+    //api操作记录
+    public function message_log($array = null) {
+        if($array){
+            foreach($array as $key => $val){
+                switch($key){
+                    case 'resp_data':
+                        $keyarr[] = 'msg';
+                        $valarr[] = $array['resp_data']['msg'];
+                        $keyarr[] = 'status';
+                        $valarr[] = $array['resp_data']['status'];
+                        $keyarr[] = 'resp_data';
+                        $valarr[] = json_encode($array['resp_data']);
+                        break;
+                    case 'req_data':
+                        $keyarr[] = 'req_data';
+                        $valarr[] = json_encode($array['req_data']);
+                        break;
+                    default:
+                        $keyarr[] = $key;
+                        $valarr[] = $val;
+                        break;
+                }
+            }
+            $keyarr[] = 'create_time';
+            $valarr[] = date('y-m-d h:i:s',time());
+            list($insert_id, $total_rows) = DB::insert('log',$keyarr)->values($valarr)->execute();
+        }
+    }
+
+
+
+    //通过图片地址hash值获取图信息
+    public function get_image_path($hash){
+        if(Valid::not_empty($hash)){
+            return DB::select('new_file','uri','hash')->from('file')->where('hash','=',$hash)->where('status','=','1')->execute()->current();
+        }else{
+            return FALSE;
+        }
+    }
+    //通过hash修改图片信息
+    public function set_imageinfo_tohash($array=null,$hash=null){
+        if(!Valid::not_empty($array)||!Valid::not_empty($hash)){
+            return false;
+        }
+        $affected_rows = DB::update('file')->set($array)->where('hash','=',$hash)->execute();
+        return $affected_rows!==NULL;
+    }
+
+
+}

@@ -1,0 +1,86 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+
+/**
+ * Created by PhpStorm.
+ * User: chunyu
+ * Date: 18/01/10
+ * Time: 上午2:05
+ *
+ *  分期计算公式
+ *  tc_order.type=6
+ *
+ */
+class Model_Order_Formula_Inst extends Model
+{
+
+    private $first_add = 0;        //首次借款时附加
+    private $again_add = 0;         //再次借款是附加
+    public $amount = 0;
+    public $month = 0;
+    public $rate = 1.0;                 //手续费折扣率
+
+    public $first_interest = 0.03;//月利率
+    public $again_interest = 0.03;
+
+    function init($amount, $month, $rate = null)
+    {
+        $this->amount = $amount;
+        $this->month = (int)$month;
+        if ($rate !== null) {
+            $this->rate = $rate;
+        }
+
+        return $this;
+    }
+
+
+    /** 首次借款费用
+     * @param null $amount
+     * @param null $month
+     * @return int|string
+     */
+    function first($amount, $month, $rate = null)
+    {
+        $this->init($amount, $month, $rate);
+        $interest = bcmul(bcmul($this->amount, $this->month, 2), $this->first_interest, 6);
+
+        return bcmul(bcadd($interest, $this->first_add, 2), $this->rate, 2);
+    }
+
+    /** 再次借款费用
+     * @param null $amount
+     * @param null $month
+     * @return int|string
+     */
+    function again($amount, $month, $rate = null)
+    {
+        $this->init($amount, $month, $rate);
+        $interest = bcmul(bcmul($this->amount, $this->month, 2), $this->again_interest, 6);
+
+        return bcmul(bcadd($interest, $this->again_add, 2), $this->rate, 2);
+    }
+
+
+    /**
+     * 日期计算
+     * @param int $num 几个月后
+     */
+    function date_formula($num = 1)
+    {
+        $day = date('d');
+        $date = date('Y/m/d', mktime(0, 0, 0, date('m') + $num, $day, date('Y')));
+        $date_arr = explode('/', $date);
+
+        if($date_arr[2] != $day){
+
+            $_day = date('d', mktime(0, 0, 0, $date_arr[1], '01', $date_arr[2]) - 1);
+            $_month = sprintf('%02d', $date_arr[1] - 1);
+
+            $date = $date_arr[0] . '/' . $_month . '/' . $_day;
+        }
+
+        return $date;
+    }
+
+}

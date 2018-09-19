@@ -1,0 +1,171 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+
+/**
+ * Created by PhpStorm.
+ * User: admin
+ * Date: 2018/1/17
+ * Time: 下午3:01
+ *
+ *
+ * 准入规则
+ *
+ */
+class Lib_TCCredit_Short
+{
+
+    protected $user_id = 0;
+    protected $user    = [];
+
+
+    public function user_id($user_id = 0) {
+        $this->user_id = (int)$user_id;
+        $this->user = Model::factory('User')->get_one($this->user_id);
+        return $this;
+    }
+
+    /**
+     * 准入规则
+     */
+    public function base($user_id = 0){
+        $end     = true;
+        $valid   = Model_AdmissionShort::STATUS_VALID;
+        $invalid = Model_AdmissionShort::STATUS_INVALID;
+        $short_end_arr = [];
+
+        if ($user_id >= 0) {
+            $this->user_id($user_id);
+        }
+
+        if (!$this->user) {
+            return $end;
+        }
+
+        // RULER_ZRQ10001  => '年龄小于22周岁或大于45周岁',
+        $short_end_arr[Model_AdmissionShort::RULER_ZRQ10001] = $valid;
+        $age = (int) Lib::factory('IDCard')->age($this->user['identity_code']);
+        if($age < 22 || $age > 45){
+            $short_end_arr[Model_AdmissionShort::RULER_ZRQ10001] = $invalid;
+            $end = false;
+        }
+
+        // 工作信息
+        $work   = Model::factory('CreditInfo_Work')->get_one($this->user_id);
+        // 设备信息
+        $device = Model::factory('Location_BaiduMap')->get_one_by_user_id($this->user_id);
+        // 居住地
+        $home   = Model::factory('CreditInfo_Home')->get_one($this->user_id);
+
+        // RULER_ZRQ10002  => '工作地定位、现居住地定位、当前设备定位省份任意项是新疆或西藏'
+        $short_end_arr[Model_AdmissionShort::RULER_ZRQ10002] = $valid;
+        $city_names = ['新疆', '西藏'];
+        $check_city_arr = [$work, $device, $home];
+
+        foreach($check_city_arr as $cv){
+            foreach($city_names as $city){
+                if(mb_strpos($cv['province'], $city) !== false || mb_strpos($cv['city'], $city) !== false){
+                    $short_end_arr[Model_AdmissionShort::RULER_ZRQ10002] = $invalid;
+                    $end = false;
+                    break;
+                }
+            }
+            if(!$short_end_arr[Model_AdmissionShort::RULER_ZRQ10002]){
+                break;
+            }
+        }
+
+        // RULER_ZRQ10002  => '工作地定位、现居住地定位、当前设备定位省份任意项是延边朝鲜族自治州',
+        $short_end_arr[Model_AdmissionShort::RULER_ZRQ10003] = $valid;
+
+        foreach($check_city_arr as $cv){
+            if(mb_strpos($cv['province'], '延边朝鲜族自治州') !== false || mb_strpos($cv['city'], '延边朝鲜族自治州') !== false){
+                $short_end_arr[Model_AdmissionShort::RULER_ZRQ10003] = $invalid;
+                $end = false;
+                break;
+            }
+        }
+
+        // RULER_ZRQ10004  => '用户填写单位名称中，若字段中包含“小额贷款、小贷、担保、互联网 金融、互联网金融服务、金融服务 OR金融信息服务、金融信息咨询、 金融科技”任一词',
+        $short_end_arr[Model_AdmissionShort::RULER_ZRQ10004] = $valid;
+        $word_intratype = ['小额贷款','小贷','担保','互联网金融','金融服务','金融信息服务','金融信息咨询','金融科技'];
+
+        foreach($word_intratype as $wv){
+            if(mb_strpos($work['company_name'], $wv) !== false){
+                $short_end_arr[Model_AdmissionShort::RULER_ZRQ10004] = $invalid;
+                $end = false;
+                break;
+            }
+        }
+
+        // RULER_ZRQ10005  => '用户填写单位名称中，若字段中包“公安局、派出所、检察院、法院、监狱、看守所、拘留所”任一词'
+        $short_end_arr[Model_AdmissionShort::RULER_ZRQ10005] = $valid;
+        $word_pso = ['公安局','派出所','检察院','法院','监狱','看守所','拘留所'];
+
+        foreach($word_pso as $wv){
+            if(mb_strpos($work['company_name'], $wv) !== false){
+                $short_end_arr[Model_AdmissionShort::RULER_ZRQ10005] = $invalid;
+                $end = false;
+                break;
+            }
+        }
+
+        // RULER_ZRQ10006  => '用户填写单位名称中，若字段中包“解放军、武警及陆、海、空军”，且不包含“医院”;',
+        $short_end_arr[Model_AdmissionShort::RULER_ZRQ10006] = $valid;
+        $word_army = ['解放军','武警','陆军','海军','空军'];
+        $have_hospital = mb_strpos($work['company_name'], '医院');
+
+        foreach($word_army as $wv){
+            if(mb_strpos($work['company_name'], $wv) !== false && $have_hospital === false){
+                $short_end_arr[Model_AdmissionShort::RULER_ZRQ10006] = $invalid;
+                $end = false;
+                break;
+            }
+        }
+
+        // RULER_ZRQ10008  => '用户发起授信申请时，对用户注册时间进行判断，注册时间为凌晨3:00(含)-5:00(含)时间段内',
+        $short_end_arr[Model_AdmissionShort::RULER_ZRQ10008] = $valid;
+        $user_reg_hour   = (int)date('H', $this->user['create_time']);
+        $user_reg_second = (int)date('s', $this->user['create_time']);
+
+        if($user_reg_hour >= 3 && ($user_reg_hour < 5 || ($user_reg_hour == 5 && $user_reg_second == 0))){
+            $short_end_arr[Model_AdmissionShort::RULER_ZRQ10008] = $invalid;
+            $end = false;
+        }
+
+        // RULER_ZRQ10009  => '若用户申请授信时间为凌晨1:00(含)-6:00(含)时间段内',
+        $short_end_arr[Model_AdmissionShort::RULER_ZRQ10009] = $valid;
+        $now_hour   = (int)date('H', time());
+        $now_second = (int)date('s', time());
+
+        if($now_hour >= 1 && ($now_hour < 6 || ($now_hour == 6 && $now_second == 0)) ){
+            $short_end_arr[Model_AdmissionShort::RULER_ZRQ10009] = $invalid;
+            $end = false;
+        }
+
+        // RULER_ZRQ100010 => '通过OCR对身份证反面有效期进行验证，若有效期截止 日期距离申请日期小于等于30天',
+        $short_end_arr[Model_AdmissionShort::RULER_ZRQ100010] = $valid;
+        $idauth    = Model::factory('User_FaceIDAuth')->get_one_by_user_id($this->user_id);
+        $validity  = explode('-', $idauth['valid_date']);
+        $valid_day = (int)(strtotime(str_replace('.', '-', $validity[1])) - time());
+
+        if($valid_day <= 2592000){
+            $short_end_arr[Model_AdmissionShort::RULER_ZRQ100010] = $invalid;
+            $end = false;
+        }
+
+        // RULER_ZRQ100011 => '手机号或身份证号命中我司自有黑名单',
+        $short_end_arr[Model_AdmissionShort::RULER_ZRQ100011] = $valid;
+
+        if(Model::factory('BlackList')->check(['mobile' => $this->user['mobile'], 'identity_code' => $this->user['identity_code']]) === TRUE){
+            $short_end_arr[Model_AdmissionShort::RULER_ZRQ100011] = $invalid;
+            $end = false;
+        }
+
+        // 增加准入简报
+        foreach($short_end_arr as $sk => $sv){
+            Model::factory("AdmissionShort")->add_short($this->user_id, $sk, $sv);
+        }
+
+        return $end;
+    }
+}

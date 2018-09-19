@@ -1,0 +1,486 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+
+/**
+ * Created by PhpStorm.
+ * User: yangge
+ * Date: 2018/1/11
+ * Time: 下午8:31
+ */
+class DClient
+{
+
+    const SEND_DATA_REQUEST_URL = 'http://172.16.3.15:8080/importData';
+    const QUERY_DATA_REQUEST_URL = '';
+    const REQUEST_TYPE_SEND = 'send';
+    const REQUEST_TYPE_QUERY = 'query';
+
+    protected $_curl;
+    protected $_res;
+    protected $_body;
+    protected $_header;
+    protected $_url;
+    protected $_service;
+    protected $_query;
+    protected $_file;
+    protected $_postdata;
+    protected $_method;
+    protected $user;
+    protected $type;
+    protected $_error = array('no' => 0, 'msg' => '');
+    protected $_timeout = 180;
+    protected $_connect_timeout = 20;
+    protected $_referrer = '';
+    protected $_id; //标识 一般用于记录数据ID 以便返回更新数据表
+    protected $_ext = null;//一些附件信息
+    protected $_log = 1;//日志开关,默认开启
+    //2017-12-13 removed:   protected $_db_log_table = 'tcapi_log_admin';
+    protected $_log_type = 'file';//mysql\mongodb\file
+    protected $_log_config = null;//数据库使用特殊配置组
+    protected $_log_err_file_path = APPPATH.'logs/tcapi';//数据库日志存储失败后使用文本记录在本地的路径
+    protected $_local = ['server' => ['name' => 'tcapi-client']];
+    protected $_encoding = 'UTF-8';
+    protected $client_id = '';
+    protected $client_key = '';
+    protected $_sign = true;//验证开关
+    protected $_token;//成对检索
+
+
+    public function __construct($type = null)
+    {
+        $this->_token = uniqid().Text::random('alnum', 8);
+        if ($type == self::REQUEST_TYPE_SEND) {
+            $this->url(self::SEND_DATA_REQUEST_URL);
+        } else {
+            $this->url(self::QUERY_DATA_REQUEST_URL);
+        }
+        $this->type = $type;
+        $this->_curl = curl_init();
+        curl_setopt($this->_curl, CURLOPT_HEADER, true);
+        curl_setopt($this->_curl, CURLOPT_NOBODY, false);
+        curl_setopt($this->_curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($this->_curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_0);
+    }
+
+
+    public static function factory($type)
+    {
+        return new DClient($type);
+    }
+
+
+    //更改网址
+    public function url($url)
+    {
+        $this->_url = $url;
+
+        return $this;
+    }
+
+    public function user_id($user_id)
+    {
+        $users = new Model_User();
+        $user = $users->get_one($user_id);
+        $this->user = array(
+            'username' => $user['username'],
+            'mobile' => $user['mobile'],
+            'identity_code' => $user['identity_code']
+        );
+        return $this;
+    }
+
+    //设置SSL属性
+    public function ssl()
+    {
+        curl_setopt($this->_curl, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($this->_curl, CURLOPT_SSL_VERIFYHOST, false);
+
+        return $this;
+    }
+
+    //完成配置
+    public function compile($sign = true)
+    {
+
+        if ($sign) {
+            $this->httpheader(array('Content-Type:application/json'));
+        }
+        curl_setopt($this->_curl, CURLOPT_CONNECTTIMEOUT, $this->_connect_timeout);
+        curl_setopt($this->_curl, CURLOPT_TIMEOUT, $this->_timeout);
+        curl_setopt($this->_curl, CURLOPT_REFERER, $this->_referrer);
+        curl_setopt($this->_curl, CURLOPT_URL, $this->_url);
+        if (strtolower(substr($this->_url, 0, 8)) == 'https://') {
+            $this->ssl();
+        }
+
+        return $this;
+    }
+
+    //完成分析 在调用$this->curl($ch)后使用
+    public function analyze()
+    {
+        $this->_error['no'] = curl_errno($this->_curl);
+        if ($this->_error['no'] > 0) {
+            $this->_error['msg'] = curl_error($this->_curl);
+            $this->_body = $this->_res;
+        } else {
+            $header_size = curl_getinfo($this->_curl, CURLINFO_HEADER_SIZE);
+            if ($header_size) {
+                $this->_header = substr($this->_res, 0, $header_size);
+                $this->_body = substr($this->_res, $header_size);
+            } else {
+                $this->_body = $this->_res;
+            }
+        }
+        $body = $this->_body;
+
+        if (function_exists('mb_detect_encoding')) {//编码转换
+            $encoding = mb_detect_encoding($this->_body, array('ASCII', 'ISO-8859-1', 'GB2312', 'BIG5', 'GBK', 'UTF-8'));
+            if ($encoding != $this->_encoding) {
+                try {
+                    $body = iconv($encoding, $this->_encoding, $this->_body);
+                } catch (Exception $e) {
+                    $body = mb_convert_encoding($this->_body, $this->_encoding);
+                }
+            }
+        }
+
+        return $this;
+
+    }
+
+
+    //整合一套 sign开关
+    public function execute($sign = true)
+    {
+        $this->compile($sign);
+        $this->_res = curl_exec($this->_curl);
+        $this->analyze();
+        curl_close($this->_curl);
+
+        return $this;
+    }
+
+
+    public function import($ch = null)
+    {//导入已经处理的CURL源 配合TCAPIQueue
+        if (is_resource($ch)) {
+            $this->_curl = $ch;
+            $this->_res = curl_multi_getcontent($this->_curl);
+
+            return $this;
+        }
+
+        return $this;
+    }
+
+
+    public function referrer($referrer = null)
+    {
+        if ($referrer) {
+            $this->_referrer = $referrer;
+        }
+
+        return $this;
+    }
+
+
+    public function timeout($timeout)
+    {
+        if ($timeout) {
+            $this->_timeout = intval($timeout);
+        }
+
+        return $this;
+    }
+
+    public function connect_timeout($timeout)
+    {
+        if ($timeout) {
+            $this->_connect_timeout = intval($timeout);
+        }
+
+        return $this;
+    }
+
+    public function curl($ch = null)
+    {
+        if (is_resource($ch)) {
+            $this->_curl = $ch;
+
+            return $this;
+        }
+
+        return $this->_curl;
+    }
+
+
+    public function body()
+    {
+        return $this->_body;
+    }
+
+    public function header()
+    {
+        return $this->_header;
+    }
+
+    public function as_array()
+    {
+        if ($this->is_json($this->_body)) {
+            return json_decode($this->_body, true);
+        }
+
+        return false;
+    }
+
+    public function error()
+    {
+        return $this->_error;
+    }
+
+
+    public function file($files = array())
+    {
+        if ($files) {
+            foreach ($files as $k => $v) {
+
+                if (is_file($v)) {
+                    $this->_file[$k] = curl_file_create($v);
+                }
+            }
+        }
+
+        return $this;
+    }
+
+    public function getsign($data)
+    {
+        $config = Kohana::$config->load('api')->get('9douyu');
+        $this->client_key = $config['client_key'];
+        $this->client_id = $config['client_id'];
+        ksort($data);   //排序关联数组
+        $str        = '';
+        foreach($data as $key=>$val){
+            if($val){
+                $str   .= $key.'='.$val.'&';
+            }
+        }
+        $str        = substr($str,0,-1);
+        $encrypted = mcrypt_encrypt(MCRYPT_RIJNDAEL_128, $this->client_key, $data, MCRYPT_MODE_CBC, $this->client_id);
+        return $encrypted;
+    }
+
+    public function packag($query = array(),$request_no)
+    {
+        //$sign = $this->getsign($query);
+        $sign = '21312312';
+        if ($this->type == self::REQUEST_TYPE_SEND) {
+            $request_data = array(
+                'request_no' => $request_no,
+                'userInfo' => $this->user,
+                'data' => $query,
+                'sign' => $sign
+            );
+        }else{
+            $request_data = array(
+                'request_no' => $request_no,
+                'sign' => $sign
+            );
+        }
+        $this->_query = json_encode($request_data);
+    }
+
+    public function post($query = array(),$request_no)
+    {
+        $this->_method = 'POST';
+        $this->packag($query,$request_no);
+
+        $this->_postdata = $this->value_string($this->_query);
+        curl_setopt($this->_curl, CURLOPT_POST, true);
+        //url_setopt($this->_curl, CURLOPT_POSTFIELDS, http_build_query($this->_postdata));
+        if (is_array($this->_postdata)) {
+
+            if ($this->_file) {
+                $data = $this->_postdata;
+                curl_setopt($this->_curl, CURLOPT_SAFE_UPLOAD, false);
+                curl_setopt($this->_curl, CURLOPT_BINARYTRANSFER, true);
+                foreach ($this->_file as $k => $v) {
+                    $data[$k] = $v;
+                }
+                curl_setopt($this->_curl, CURLOPT_POSTFIELDS, $data);
+            } else {
+                curl_setopt($this->_curl, CURLOPT_POSTFIELDS, http_build_query($this->_postdata));
+            }
+        } else {
+            curl_setopt($this->_curl, CURLOPT_POSTFIELDS, $this->_postdata);
+
+        }
+
+        return $this;
+    }
+
+    public function get($query = array())
+    {
+        $this->_method = 'GET';
+        if (!empty($query)) {
+            $this->_url .= strpos($this->_url, '?') === false ? '?' : '&';
+            $this->_url .= is_array($query) ? http_build_query($query) : $query;
+        }
+
+        return $this;
+    }
+
+    public function put($query = array())
+    {
+        $this->_method = 'PUT';
+        curl_setopt($this->_curl, CURLOPT_CUSTOMREQUEST, 'PUT');
+
+        return $this->post($query);
+    }
+
+    public function delete($query = array())
+    {
+        $this->_method = 'DELETE';
+        curl_setopt($this->_curl, CURLOPT_CUSTOMREQUEST, 'DELETE');
+
+        return $this->post($query);
+    }
+
+    public function head($query = array())
+    {
+        $this->_method = 'HEAD';
+        curl_setopt($this->_curl, CURLOPT_CUSTOMREQUEST, 'HEAD');
+
+        return $this->post($query);
+    }
+
+    public function options($query = array())
+    {
+        $this->_method = 'OPTIONS';
+        curl_setopt($this->_curl, CURLOPT_CUSTOMREQUEST, 'OPTIONS');
+
+        return $this->post($query);
+    }
+
+    public function trace($query = array())
+    {
+        $this->_method = 'TRACE';
+        curl_setopt($this->_curl, CURLOPT_CUSTOMREQUEST, 'TRACE');
+
+        return $this->post($query);
+    }
+
+    //自定义HTTP头部分
+    public function httpheader($array = null)
+    {
+        if ($array !== null) {
+            $this->curlopt(CURLOPT_HTTPHEADER, $array);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param null|array|string $opt
+     * @param null|string $value
+     * $opt 数组方式 array(array(CURLOPT_CUSTOMREQUEST,'OPTIONS'),array('CURLOPT_CUSTOMREQUEST','TRACE'));
+     * $value 单条方式 $opt为CURL配置名 $value为值
+     */
+    public function curlopt($opt = null, $value = null)
+    {
+        if ($opt !== null) {
+            if (is_array($opt)) {
+                foreach ($opt as $v) {
+                    if (isset($v[0]) && isset($v[1])) {
+                        curl_setopt($this->_curl, $v[0], $v[1]);
+                    }
+                }
+            } elseif ($value !== null) {
+                curl_setopt($this->_curl, $opt, $value);
+            }
+        }
+
+        return $this;
+    }
+
+
+    //记录一个标识
+    public function id($id = null)
+    {
+        if ($id !== null) {
+            $this->_id = $id;
+
+            return $this;
+        } else {
+            return $this->_id;
+        }
+    }
+
+    //附带的一些数据
+    public function ext($ext = null)
+    {
+        if ($ext !== null) {
+            $this->_ext = $ext;
+
+            return $this;
+        } else {
+            return $this->_ext;
+        }
+    }
+
+    public function _array()
+    {
+        return array(
+            'curl' => $this->_curl,
+            'body' => $this->_body,
+            'header' => $this->_header,
+            'method' => $this->_method,
+            'url' => $this->_url,
+            'service' => $this->_service,
+            'referrer' => $this->_referrer,
+            'timeout' => $this->_timeout,
+            'connect_timeout' => $this->_connect_timeout,
+            'id' => $this->_id,
+            'ext' => $this->_ext,
+        );
+    }
+
+
+    public function log($off = null)
+    {
+        $this->_log = $off;
+
+        return $this;
+    }
+
+
+    public function __destruct()
+    {
+        // TODO: Implement __destruct() method.
+        if (is_object($this->_curl)) {
+            curl_close($this->_curl);
+        }
+    }
+
+
+    public function is_json($json_string)
+    {
+        $test = json_decode($json_string);
+
+        return (json_last_error() == JSON_ERROR_NONE);
+    }
+
+
+    public function value_string($array = null)
+    {
+        if (is_array($array)) {
+            foreach ($array as $k => $v) {
+                $array[$k] = is_array($v) ? $this->value_string($v) : (string)$v;
+            }
+        }
+
+        return $array;
+    }
+
+}

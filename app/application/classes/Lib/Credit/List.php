@@ -1,0 +1,342 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 2016/10/20
+ * Time: 上午3:08
+ *
+ * 授信列表
+ *
+ * lib::factory('Credit_List')->app_id(App::$id)->credit_list(App::$_token['user_id');
+ *
+ * 关于授信列表的status
+ *  0   未提交:未提交
+ *  1   已通过:不需要再提交
+ *  2   未通过:无法再提交
+ *  3   待提交:未通过但可以重新提交
+ */
+class Lib_Credit_List {
+
+
+    //只做顺序提示
+    protected $credit_sort = [
+        'app_mno',
+        'app_authorize',
+        'app_work',
+        'app_contact',
+        'app_bankcard',
+        'app_faceid',
+    ];
+    const DATA_TYPE_SDK = '1';
+    const DATA_TYPE_H5 = '2';
+
+    protected $user_id = 0;
+    protected $last_update_time = 30*86400;// 30 day
+    protected $last_repay_time = 30*86400;// 30 day
+    protected $user = [];
+    protected $app_id = '';
+    protected $model = [];
+    protected $_env;
+
+    public function user_id($user_id=0){
+        $this->user_id = (int)$user_id;
+        $this->user = Model::factory('User')->get_one($this->user_id);
+        return $this;
+    }
+
+
+
+    public function app_id($app_id){
+        $this->app_id = $app_id;
+        return $this;
+    }
+
+
+
+
+
+    //授信列表
+    //授信列表
+    public function credit_list($user_id=0)
+    {
+        $this->_env = Kohana::$config->load('env');//环境配置
+        if ($user_id >= 0) {
+            $this->user_id($user_id);
+        }
+        if (!$this->user) {
+            return false;
+        }
+
+        $credit_list = [];
+
+        $this->model['step'] = Model::factory('CreditInfo_Step');
+        $this->model['user'] = Model::factory('User');
+        $this->model['bankcard'] = Model::factory('BankCard');
+        $ci_step = $this->model['user']->get_ci_step(App::$_token['user_id']);
+        $this->model['credit_list'] = Model::factory('Credit_List');
+
+        //实名绑卡
+        $_bankcard = [
+            'name' => 'app_bankcard',
+            'show_title' => '银行卡绑卡',
+            'url' => $this->model['credit_list']->get_url('app_bankcard', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/bt/icon_yhkrz.png',
+            'sdk' => '',
+            'expire' => $this->is_expire('app_bankcard',Model_CreditInfo_Step::BANK),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        $bc = $this->model['bankcard']->get_by_user_id($this->user_id);
+        if ($bc) {
+            $_bankcard['show_status_title'] = '已提交';
+            $_bankcard['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_bankcard['url'] = $this->model['credit_list']->get_url('app_bankcard', 'success');
+        }
+
+        //移动运营商
+        $_mno = [
+            'name' => 'app_mno',
+            'show_title' => '移动运营商认证',
+            'url' => $this->model['credit_list']->get_url('app_mno', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/bt/icon_yyssq.png',
+            'sdk' => self::DATA_TYPE_H5,
+            'expire' => $this->is_expire('app_mno',Model_CreditInfo_Step::MNO),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (isset($ci_step[Model_CreditInfo_Step::MNO]) && $ci_step[Model_CreditInfo_Step::MNO] == 2) {
+            $_mno['show_status_title'] = '已提交';
+            $_mno['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_mno['url'] = $this->model['credit_list']->get_url('app_mno', 'success');
+        }
+
+        //人脸识别
+        $_faceid = [
+            'name' => 'app_faceid',
+            'show_title' => '人脸识别',
+            'url' => $this->model['credit_list']->get_url('app_faceid', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/bt/icon_rlsb.png',
+            'sdk' => '',
+            'expire' => $this->is_expire('app_faceid',Model_CreditInfo_Step::FACEID),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (isset($ci_step[Model_CreditInfo_Step::FACEID]) && $ci_step[Model_CreditInfo_Step::FACEID] == 2) {
+            if ($faceid = Model::factory('User_FaceIDAuth')->get_one_by_user_id($this->user_id)) {
+                if (isset($faceid['identity_status']) && (int)$faceid['identity_status'] == Model_User_FaceIDAuth::STATUS_VERIFIED) {
+                    $_faceid['show_status_title'] = '已提交';
+                    $_faceid['status'] = (string)Model_Credit_List::STATUS_PASS;
+                    $_faceid['url'] = $this->model['credit_list']->get_url('app_faceid', 'success');
+                } else {
+                    $_faceid['show_status_title'] = '已提交';
+                    $_faceid['status'] = (string)Model_Credit_List::STATUS_UNPASS;
+                    $_faceid['url'] = $this->model['credit_list']->get_url('app_faceid', 'failed');
+                }
+            } else {
+                $_faceid['show_status_title'] = '已提交';
+                $_faceid['status'] = (string)Model_Credit_List::STATUS_UNPASS;
+                $_faceid['url'] = $this->model['credit_list']->get_url('app_faceid', 'failed');
+            }
+        }
+
+
+        //紧急联系人
+        $_contact = [
+            'name' => 'app_contact',
+            'show_title' => '联系人信息',
+            'url' => $this->_env['url']['app'].$this->model['credit_list']->get_url('app_contact', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/bt/icon_lxrxx.png',
+            'sdk' => '',
+            'expire' => $this->is_expire('app_contact',Model_CreditInfo_Step::CONTACT),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (isset($ci_step[Model_CreditInfo_Step::CONTACT]) && $ci_step[Model_CreditInfo_Step::CONTACT] == Model_CreditInfo_Step::COMPLETE) {
+            $_contact['show_status_title'] = '已提交';
+            $_contact['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_contact['url'] = $this->model['credit_list']->get_url('app_contact', 'success');
+        }
+
+        //工作信息
+        $_work = [
+            'name' => 'app_work',
+            'show_title' => '工作信息',
+            'url' => $this->_env['url']['app'].$this->model['credit_list']->get_url('app_work', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/bt/icon_gzxx.png',
+            'sdk' => '',
+            'expire' => $this->is_expire('app_work',Model_CreditInfo_Step::WORK),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (isset($ci_step[Model_CreditInfo_Step::WORK]) && $ci_step[Model_CreditInfo_Step::WORK] == Model_CreditInfo_Step::COMPLETE) {
+            $_work['show_status_title'] = '已提交';
+            $_work['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_work['url'] = $this->model['credit_list']->get_url('app_work', 'success');
+        }
+        $_homeInfo = [
+            'name' => 'app_homeInfo',
+            'show_title' => '居住信息',
+            'url' => $this->_env['url']['app'].$this->model['credit_list']->get_url('app_homeinfo', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/bt/icon_jzxx.png',
+            'sdk' => '',
+            'expire' => $this->is_expire('app_homeinfo',Model_CreditInfo_Step::HOME),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (isset($ci_step[Model_CreditInfo_Step::HOME]) && $ci_step[Model_CreditInfo_Step::HOME] == Model_CreditInfo_Step::COMPLETE) {
+            $_homeInfo['show_status_title'] = '已提交';
+            $_homeInfo['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_homeInfo['url'] = $this->model['credit_list']->get_url('app_homeinfo', 'success');
+        }
+
+        //信用卡账单
+        $_app_creditcars_bill = [
+            'name' => 'app_creditcardbill',
+            'show_title' => '信用卡账单',
+            'url' => $this->model['credit_list']->get_url('app_creditcardbill', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/xt/icon_xykzd.png',
+            'sdk' => self::DATA_TYPE_SDK,
+            'expire' => $this->is_expire('app_creditcardbill',Model_CreditInfo_Step::EMAIL),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (isset($ci_step[Model_CreditInfo_Step::EMAIL]) && $ci_step[Model_CreditInfo_Step::EMAIL] == Model_CreditInfo_Step::COMPLETE) {
+            $_app_creditcars_bill['show_status_title'] = '已提交';
+            $_app_creditcars_bill['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_app_creditcars_bill['url'] = $this->model['credit_list']->get_url('app_creditcardbill', 'success');
+        }
+
+        //京东抓取
+        $_app_jingdong = [
+            'name' => 'app_jingdong',
+            'show_title' => '京东抓取',
+            'url' => $this->model['credit_list']->get_url('app_jingdong', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/xt/icon_jd.png',
+            'sdk' => self::DATA_TYPE_SDK,
+            'expire' => $this->is_expire('app_jingdong',Model_CreditInfo_Step::JINGDONG),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (isset($ci_step[Model_CreditInfo_Step::JINGDONG]) && $ci_step[Model_CreditInfo_Step::JINGDONG] == Model_CreditInfo_Step::COMPLETE) {
+            $_app_jingdong['show_status_title'] = '已提交';
+            $_app_jingdong['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_app_jingdong['url'] = $this->model['credit_list']->get_url('app_jingdong', 'success');
+        }
+
+        //淘宝抓取
+        $_app_taobao = [
+            'name' => 'app_taobao',
+            'show_title' => '淘宝抓取',
+            'url' => $this->model['credit_list']->get_url('app_taobao', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/xt/icon_tb.png',
+            'sdk' => self::DATA_TYPE_SDK,
+            'expire' => $this->is_expire('app_taobao',Model_CreditInfo_Step::TAOBAO),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (isset($ci_step[Model_CreditInfo_Step::TAOBAO]) && $ci_step[Model_CreditInfo_Step::TAOBAO] == Model_CreditInfo_Step::COMPLETE) {
+            $_app_taobao['show_status_title'] = '已提交';
+            $_app_taobao['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_app_taobao['url'] = $this->model['credit_list']->get_url('app_taobao', 'success');
+        }
+
+        //公积金抓取
+        $_app_fund = [
+            'name' => 'app_fund',
+            'show_title' => '公积金抓取',
+            'url' => $this->model['credit_list']->get_url('app_fund', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/xt/icon_gjjrz.png',
+            'sdk' => self::DATA_TYPE_H5,
+            'expire' => $this->is_expire('app_fund',Model_CreditInfo_Step::FUND),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (isset($ci_step[Model_CreditInfo_Step::FUND]) && $ci_step[Model_CreditInfo_Step::FUND] == Model_CreditInfo_Step::COMPLETE) {
+            $_app_fund['show_status_title'] = '已提交';
+            $_app_fund['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_app_fund['url'] = $this->model['credit_list']->get_url('app_fund', 'success');
+        }
+
+        //社保抓取
+        $_app_socialsecurity = [
+            'name' => 'app_socialsecurity',
+            'show_title' => '社保抓取',
+            'url' => $this->model['credit_list']->get_url('app_socialsecurity', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/xt/icon_sbxx.png',
+            'sdk' => self::DATA_TYPE_H5,
+            'expire' => $this->is_expire('app_socialsecurity',Model_CreditInfo_Step::SOCIAL_SECURITY),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (isset($ci_step[Model_CreditInfo_Step::SOCIAL_SECURITY]) && $ci_step[Model_CreditInfo_Step::SOCIAL_SECURITY] == Model_CreditInfo_Step::COMPLETE) {
+            $_app_socialsecurity['show_status_title'] = '已提交';
+            $_app_socialsecurity['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_app_socialsecurity['url'] = $this->model['credit_list']->get_url('app_socialsecurity', 'success');
+        }
+
+
+        //应用授权
+        $_app_authorize = [
+            'name' => 'app_authorize',
+            'show_title' => '应用授权',
+            'url' => $this->model['credit_list']->get_url('app_authorize', 'start'),
+            'icon' => 'http://a-cdn.timecash.cn/banner/inst/sxym/bt/icon_yysq.png',
+            'sdk' => '',
+            'expire' => $this->is_expire('app_authorize',Model_CreditInfo_Step::PHONEBOOK),
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if (strtolower($this->app_id) == 'android') {
+            if (
+                (isset($ci_step[Model_CreditInfo_Step::PHONEBOOK]) && $ci_step[Model_CreditInfo_Step::PHONEBOOK] == Model_CreditInfo_Step::COMPLETE) &&
+                (isset($ci_step[Model_CreditInfo_Step::SMS]) && $ci_step[Model_CreditInfo_Step::SMS] == Model_CreditInfo_Step::COMPLETE) &&
+                (isset($ci_step[Model_CreditInfo_Step::CALL]) && $ci_step[Model_CreditInfo_Step::CALL] == Model_CreditInfo_Step::COMPLETE)
+            ) {
+                $_app_authorize['status'] = (string)Model_Credit_List::STATUS_PASS;
+                $_app_authorize['url'] = $this->model['credit_list']->get_url('app_authorize', 'success');
+                $_app_authorize['show_status_title'] = '已提交';
+            }
+
+            return ['must' => [$_app_authorize, $_bankcard, $_mno, $_contact, $_work, $_homeInfo, $_faceid,], 'chose' => [$_app_creditcars_bill, $_app_jingdong, $_app_taobao, $_app_socialsecurity, $_app_fund]];
+
+
+        } else {
+            if (isset($ci_step['phone_book']) && $ci_step['phone_book'] == Model_CreditInfo_Step::COMPLETE) {
+                $_app_authorize['status'] = (string)Model_Credit_List::STATUS_PASS;
+                $_app_authorize['url'] = $this->model['credit_list']->get_url('app_authorize', 'success');
+                $_app_authorize['show_status_title'] = '已提交';
+            }
+
+            return ['must' => [$_app_authorize, $_bankcard, $_mno, $_contact, $_work, $_homeInfo, $_faceid,], 'chose' => [$_app_creditcars_bill, $_app_jingdong, $_app_taobao, $_app_socialsecurity, $_app_fund]];
+        }
+    }
+
+
+
+    #是否过期，
+    private function is_expire($module,$step)
+    {
+        $ci_step = Model::factory('User')->get_ci_step(App::$_token['user_id']);
+        $expire = Model::factory('User')->get_pass_time(App::$_token['user_id']);
+        if(isset($ci_step[$step]) && $ci_step[$step] == 3){
+            return '2';
+        }elseif (isset($ci_step[$step]) && $ci_step[$step] == 2){
+            $expire_time = Model::factory("Credit_List")->get_validity($module);
+            if(time() > ($expire[$step]+$expire_time)){
+                Model::factory('CreditInfo_Step')->change(App::$_token['user_id'],['status' => Model_CreditInfo_Step::EXPIRE,'pass_time' => ''],$step);
+                return '2';
+            }else{
+                return '1';
+            }
+        }else{
+            return '1';
+        }
+    }
+
+
+
+
+
+
+}

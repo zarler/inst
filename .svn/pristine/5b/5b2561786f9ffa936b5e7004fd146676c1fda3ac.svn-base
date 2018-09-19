@@ -1,0 +1,101 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 16/10/14
+ * Time: 下午2:04
+ *
+ * 快金 评分处理
+ *
+ *  对评分过程封装,对外提供单一获取结果方法.
+ *
+ *  fast_loan() 极速贷
+ *  ensure_loan() 担保借款
+ *  credit_loan() 信用借款
+ *
+ *
+ *  未启用!
+ */
+class Lib_TCCredit_ScoreReview {
+    const UNINIT = 0;                   //初始值(未查询)
+    const MODULE = 'scorepettycashv1';  //模块名
+    const NO_RETRY_TIME = 15*86400;     //不重复查询时间,避免短期之内重复更新
+    const FASTLOAN_PASS_SCORE = 700;    //极速贷自动通过 (大于等于)
+
+    protected $user;                    //用户记录
+    protected $model = [];              //MODEL对象数组
+    protected $record = [];             //简表结果
+    protected $result = 0;
+
+
+    public function __construct($user_id=0) {
+        $this->model['bairong'] = Model::factory('AntiFraud_BaiRong');
+        if($user_id>0){
+            $this->user_id($user_id);
+        }
+    }
+
+    //初始化用户
+    public function user_id($user_id){
+        $this->user = Model::factory('User')->get_one($user_id);
+        return $this;
+    }
+
+
+    //算分
+    public function get_result(){
+        if(isset($this->user['id'])){
+            $result = NULL;
+            $br =  new Lib_AntiFraud_BaiRong($this->user['id']);
+            $this->record = $this->model['bairong']->get_short_one_by_user_id($this->user['id'],self::MODULE);
+
+            if( isset($this->record['result']) && $this->record['result']==self::UNINIT ){
+                $this->result=$br->get_anti_fraud(self::MODULE);//从API计算结果
+                //未获得评分的暂时决定,不需要重新跑分
+            }elseif(isset($this->record['result']) ){
+                $this->result = $this->record['result'];
+            }
+        }
+
+        return $this;
+    }
+
+
+    //是否能借:极速贷
+    public function fast_loan($user_id=0){
+        if($user_id>0){
+            $this->user_id($user_id);
+            $this->get_result();
+        }
+        if((int)$this->result >= self::FASTLOAN_PASS_SCORE){
+            return TRUE;
+        }else{
+            return FALSE;
+        }
+
+    }
+
+
+    //是否能借:100%担保借款  目前针对评分,只要通过基础授信就可以放款
+    public function ensure_loan($user_id=0){
+        return TRUE;
+    }
+
+
+    //是否能借:信用借款 目前不针对评分,通过降担保申请才可以放款
+    public function credit_loan($user_id=0){
+        return TRUE;
+    }
+
+
+    //降担保评分 这部分是后台完成
+    public function reduce_ensure(){
+
+    }
+
+
+
+
+
+}

@@ -1,0 +1,135 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: wangchao
+ * Date: 2018/1/14
+ * Time: 下午3:10
+ */
+class Lib_Moxie_GetReport
+
+
+{
+
+    protected $_post = null;
+    protected $_get = null;
+    const URL = 'http://api-51datakey-com.https.p.timecash.cn';
+
+    const ACTION_URL = [
+        'Bank' => self::URL.'/bank/v3/report',
+        'Email' => self::URL.'/email/v2/report/',
+        'Fund' => self::URL.'/report/api/v1/fund/',
+        'JD' => self::URL.'/gateway/jingdong/v3/report/',
+        'Shixin' => self::URL.'/tags/v1/dishonest',
+        'Taobao' => self::URL.'/gateway/taobao/v3/report/',
+        'SocialSecurity' => self::URL.'/report/api/v1/security/',
+        'Zhixing' => self::URL.'/gateway/court/v2/zhixing/',
+        'Mno' => self::URL.'/carrier/v3/mobiles/',
+        'Chsi' => self::URL.'/chsi/v2/students-educations/',
+    ];
+
+    const ORIGINAL_URL = [
+        'Taobao' => self::URL.'/gateway/taobao/v5/data/',
+        'JD' => self::URL.'/gateway/jingdong/v5/data/',
+        'Fund' => self::URL.'/fund/v2/funds/',
+        'SocialSecurity' => self::URL.'/security/v1/result/',
+        'Email' => self::URL.'/email/v2/alldata',
+        'Mno' => self::URL.'/carrier/v3/mobiles/',
+
+    ];
+
+    public function query($data)
+    {
+
+        if (empty($data)) {
+            return json_encode(array('status' => false, 'msg' => 'API request empty!', 'error' => '9999'));
+        } else {
+            if (empty($data['action'])) {
+                return json_encode(array('status' => false, 'msg' => 'action为必填字段', 'error' => '9999'));
+            }
+            //var_dump($event_data);
+            if (empty($data['task_id'])) {
+                return json_encode(array('status' => false, 'msg' => 'task_id为必填字段', 'error' => '9999'));
+            }
+            if (empty($data['extends'])) {
+                return json_encode(array('status' => false, 'msg' => 'extends为必填字段', 'error' => '9999'));
+            }
+            if ($data['action'] == 'Email') {
+                if (empty($data['email_id'])) {
+                    return json_encode(array('status' => false, 'msg' => 'email_id为必填字段', 'error' => '9999'));
+                }
+            }
+            if ($data['action'] == 'Mno') {
+                if (empty($data['mobile'])) {
+                    return json_encode(array('status' => false, 'msg' => 'mobile为必填字段', 'error' => '9999'));
+
+                }
+            }
+        }
+        try {
+            $id = Model::factory('Moxie_Data')->add_data([
+                'req_data' => json_encode($data), 'provider' => 'Moxie', 'type' => 'Report_Success', 'state' => 6,
+                'userid' => '', 'action' => $data['action'],
+            ]);
+
+            $mno_id = Model::factory('Moxie_Data')->add_data([
+                'req_data' => json_encode($data), 'provider' => 'Moxie', 'type' => 'Original_Success', 'state' => 7,
+                'userid' => '', 'action' => $data['action'].'_original',
+            ]);
+
+            $SocialSecurity = new Lib_Moxie_Common();
+
+            if ($data['action'] == 'Fund' || $data['action'] == 'JD' || $data['action'] == 'SocialSecurity' || $data['action'] == 'Taobao' || $data['action'] == 'Zhixing' || $data['action'] == 'Chsi') {
+                $result_original = $SocialSecurity->GetReport(self::ORIGINAL_URL[$data['action']], $data['task_id']);
+                $result = $SocialSecurity->GetReport(self::ACTION_URL[$data['action']], $data['task_id']);
+            } elseif ($data['action'] == 'Fund' || $data['action'] == 'Bank') {
+                $result = $SocialSecurity->GetReportTask_id(self::ACTION_URL[$data['action']], $data['task_id']);
+            } elseif ($data['action'] == 'Email') {
+                $result_original = $SocialSecurity->GetReportTask_id(self::ORIGINAL_URL[$data['action']],
+                    $data['task_id']);
+                $result = $SocialSecurity->GetReportEmail(self::ACTION_URL[$data['action']], $data['task_id'],
+                    $data['email_id']);
+            } elseif ($data['action'] == 'Mno') {
+                $result_original = $SocialSecurity->GetOriginalMno(self::ACTION_URL[$data['action']], $data['mobile'],
+                    $data['task_id']);
+                $result = $SocialSecurity->GetReportMno(self::ACTION_URL[$data['action']],
+                    $data['mobile']);
+            }
+//            $data_item = Model::factory('Moxie_DataItem')->get_data_item(['userid' => $data['user_id']]);
+
+            if ($data['extends']) {
+                Model::factory('Moxie_Report')->create([
+                    'user_id' => $data['extends'], 'data' => json_encode(json_decode($result_original, true)),
+                    'provider' => 'Moxie',
+                    'action' => $data['action'], 'type' => 1,
+                ]);
+                Model::factory('Moxie_Report')->create([
+                    'user_id' => $data['extends'], 'data' => json_encode(json_decode($result, true)),
+                    'provider' => 'Moxie',
+                    'action' => $data['action'], 'type' => 2,
+                ]);
+
+                Model::factory('Moxie_Data')->moxie_data_update(intval($id),
+                    ['resp_data' => $result]);
+                Model::factory('Moxie_Data')->moxie_data_update(intval($mno_id),
+                    ['resp_data' => $result_original]);
+
+            }
+
+//            return $result;
+//            Model::factory('Moxie_Common')->api_log_update($log_id,['msg'=>'成功','resp_data'=>$result,'update_time'=>time()]);
+            return json_encode([
+                'status' => true, 'msg' => '发送成功', 'code' => '0000', 'api_result' => ['result' => '', 'msg' => '请求成功'],
+            ]);
+        } catch (Exception $e) {
+//            Model::factory('Moxie_Common')->api_log_update($log_id,['msg'=>'失败','resp_data'=>$result,'update_time'=>time()]);
+            return json_encode([
+                'status' => true, 'msg' => '发送成功', 'code' => '9000',
+                'api_result' => ['result' => $e->getMessage(), 'msg' => '请求失败'],
+            ]);
+        }
+
+    }
+
+
+}

@@ -1,0 +1,266 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: yangge
+ * Date: 2018/1/24
+ * Time: 上午11:53
+ */
+class Lib_CreditReview_RiskCommon extends Lib_Common
+{
+
+    const LIB_RISK_REVIEW_STATUS_INIT = 0;                              //风险审核结果：初始化状态
+    const LIB_RISK_REVIEW_STATUS_PASS = 1;                              //风险审核结果：通过状态
+    const LIB_RISK_REVIEW_STATUS_UNPASS = 2;                            //风险审核结果：拒绝状态
+
+    const REQUEST_TYPE_SEND = 'send';
+    const REQUEST_TYPE_QUERY = 'query';
+
+    public $user_id;
+    public $user;
+
+    public $response;
+    public $request;
+    public $method;
+
+    private $client_key;
+    private $client_id;
+    private $type;
+    private $_query;
+
+
+    public function user_id($user_id)
+    {
+
+        $this->user_id = $user_id;
+        $user = Model::factory("User")->get_one($user_id);
+        $this->user = $user;
+
+        return $this;
+    }
+
+    public function param($data)
+    {
+        $users = new Model_User();
+        $user = $users->get_one($this->user_id);
+        $address = $users->get_address($this->user_id);
+
+        $this->user = array(
+            'username' => $user['username'],
+            'mobile' => $user['mobile'],
+            'identity_code' => $user['identity_code'],
+            'address' => $address,
+        );
+        $this->packag($data);
+    }
+
+    public function getsign($data)
+    {
+        $config = Kohana::$config->load('api')->get('9douyu');
+        $this->client_key = $config['client_key'];
+        $this->client_id = $config['client_id'];
+        ksort($data);   //排序关联数组
+        $str = '';
+        foreach ($data as $key => $val) {
+            if ($val) {
+                $str .= $key.'='.$val.'&';
+            }
+        }
+        $str = substr($str, 0, -1);
+        $encrypted = mcrypt_encrypt(MCRYPT_RIJNDAEL_128, $this->client_key, $data, MCRYPT_MODE_CBC, $this->client_id);
+
+        return $encrypted;
+    }
+
+    public function packag($query = array())
+    {
+
+        //$sign = $this->getsign($query);
+        $sign = '21312312';
+        if ($this->type == self::REQUEST_TYPE_SEND) {
+            $request_data = array(
+                'request_no' => $query['request_no'],
+                'userInfo' => $this->user,
+                'data' => $query['data'],
+                'provider' => $query['provider'],
+                'action' => $query['action'],
+                'sign' => $sign,
+            );
+        } else {
+            $request_data = array(
+                'checkNo' => $query['check_no'],
+                'sign' => $sign,
+            );
+        }
+        $this->_query = json_encode($request_data);
+    }
+
+
+    //发送数据
+    public function send($data, $provider, $action)
+    {
+        if (!$data) {
+            return false;
+        }
+        $data['request_no'] = "Inst".Text::random('numeric', 6).time();
+        $re = Model::factory("RiskDecision")->addData($this->user_id, $data['request_no'], $data, $provider, $action);
+
+        if (!$re) {
+            $this->response(false, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口请求异常']);
+        }
+
+//        $this->type = self::REQUEST_TYPE_SEND;
+        self::param($data);
+
+        $result = DClient::factory("send")->post($this->_query)->execute()->as_array();
+
+        if (is_array($result) && $result['respCode'] == '0') {
+
+            Model::factory("RiskDecision")->setCheck($re, $result['checkNo'], $result);
+            $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'message' => '处理成功']);
+        } else {
+            $this->response(false, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口请求异常']);
+        }
+
+        return $this;
+    }
+
+    private function is_expire($module)
+    {
+        $ci_step = Model::factory('User')->get_ci_step(App::$_token['user_id']);
+        $expire = Model::factory('User')->get_pass_time(App::$_token['user_id']);
+        if (isset($ci_step[$module]) && $ci_step['status'] == 3) {
+            return '2';
+        } elseif (isset($ci_step[$module]) && $ci_step['status'] == 2) {
+            $expire_time = $this->model['credit_list']->get_validity($module);
+            if (time() > ($expire[$module] + $expire_time)) {
+                Model::factory('CreditInfo_Step')->change(App::$_token['user_id'],
+                    ['status' => Model_CreditInfo_Step::EXPIRE, 'pass_time' => ''], $module);
+
+                return '2';
+            } else {
+                return '1';
+            }
+        } else {
+            return '1';
+        }
+    }
+
+    //获取数据
+    public function get($provider, $action)
+    {
+
+        $res = Model::factory($provider."_Short")->get_one($this->user_id, $action);
+        if (!empty($res)) {
+            $expire_time = Tool::factory('Time')->Expire($res['pass_time'], $action);
+
+            if ($expire_time) {
+
+                $re1 = Model::factory("RiskDecision")->getOne($this->user_id, $provider, $action);
+
+                $data['check_no'] = $re1['check_no'];
+                self::param($data);
+
+                $result = DClient::factory("query")->post($this->_query)->execute()->as_array();
+                $risk = true;
+                if (is_array($result) && $result['respCode'] == 0) {
+                    foreach ($result['ruleList'] as $key => $val) {
+                        if ($val['ruleResult'] == 0) {
+                            $risk = false;
+                        }
+                    }
+                } else {
+                    $this->response(false,
+                        [
+                            'result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口请求异常',
+                            'retry' => '1',
+                        ]);
+                }
+                if ($risk) {
+                    Model::factory($provider."_Short")->change($res['id'], [
+                        'pass_time' => time(), 'result' => self::LIB_RISK_REVIEW_STATUS_PASS,
+                    ]);
+                    $this->response(true, [
+                        'result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS,
+                        'review' => self::LIB_RISK_REVIEW_STATUS_PASS, 'message' => '更新记录并审核通过',
+                    ]);
+                } else {
+                    Model::factory($provider."_Short")->change($res['id'], [
+                        'pass_time' => time(), 'result' => self::LIB_RISK_REVIEW_STATUS_UNPASS,
+                    ]);
+                    $this->response(false,
+                        [
+                            'result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS,
+                            'review' => self::LIB_RISK_REVIEW_STATUS_UNPASS, 'message' => '更新记录并审核拒绝',
+                        ]);
+                }
+            } else {
+
+                if ($res['result'] == self::LIB_RISK_REVIEW_STATUS_PASS) {
+                    $this->response(true, [
+                        'result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS,
+                        'review' => self::LIB_RISK_REVIEW_STATUS_PASS, 'message' => '审核通过',
+                    ]);
+                } else {
+                    $this->response(false, [
+                        'result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS,
+                        'review' => self::LIB_RISK_REVIEW_STATUS_UNPASS, 'message' => '审核拒绝',
+                    ]);
+                }
+            }
+        } else {
+            $re1 = Model::factory("RiskDecision")->getOne($this->user_id, $provider, $action);
+
+            $data['check_no'] = $re1['check_no'];
+            self::param($data);
+
+            $result = DClient::factory("query")->post($this->_query)->execute()->as_array();
+            $risk = true;
+            if (is_array($result) && $result['respCode'] == 0) {
+                foreach ($result['ruleList'] as $key => $val) {
+                    if ($val['ruleResult'] == 0) {
+                        $risk = false;
+                    }
+                }
+            } else {
+                $this->response(false,
+                    [
+                        'result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口请求异常',
+                        'retry' => '1',
+                    ]);
+            }
+            if ($risk) {
+                Model::factory($provider."_Short")->create([
+                    'user_id' => $this->user_id,
+                    'result' => self::LIB_RISK_REVIEW_STATUS_PASS,
+                    'module' => $action,
+                ]);
+                $this->response(true, [
+                    'result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS,
+                    'review' => self::LIB_RISK_REVIEW_STATUS_PASS, 'message' => '创建记录并审核通过',
+                ]);
+            } else {
+                Model::factory($provider."_Short")->create([
+                    'user_id' => $this->user_id,
+                    'result' => self::LIB_RISK_REVIEW_STATUS_UNPASS,
+                    'module' => $action,
+                ]);
+                $this->response(false,
+                    [
+                        'result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS,
+                        'review' => self::LIB_RISK_REVIEW_STATUS_UNPASS, 'message' => '更新记录并审核拒绝',
+                    ]);
+            }
+        }
+
+        return $this;
+    }
+
+    public function is_json($string)
+    {
+        json_decode($string);
+
+        return (json_last_error() == JSON_ERROR_NONE);
+    }
+
+}

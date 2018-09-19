@@ -1,0 +1,586 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * Permission: majin
+ * Date: 15/12/30
+ * Time: 下午1:53
+ * 2016-8-2 根据聚信立报告分析用户是否手机号是否实名状态{wangxuesong}
+ * 2016-8-26 新增用户电话薄和通话记录调用 {wangxuesong}
+ *  2016-9-26 新增调用用户黑名单{wangxuesong}
+ */
+
+class Model_User extends Model_Database {
+
+    //用户状态 tc_user.status
+    const STATUS_NORMAL = 1;			//正常
+    const STATUS_DENY = 2;				//禁止登录 已废弃 参见tc_user.allow_login
+    const STATUS_LOANDENY = 3;			//禁止借款,允许登录
+    const STATUS_DENYFOREVER = 4;		//永久拒绝,允许登录,拒绝授信,拒绝借款
+    const STATUS_DENYTEMP = 5;          //暂时拒绝,允许登录,拒绝授信,拒绝借款
+    const STATUS_DELETED = 9;			//已删除
+
+    //登录开关
+    const ALLOW_LOGIN__ALLOWED = 1;     //允许
+    const ALLOW_LOGIN__DISALLOW = 2;    //禁止
+
+    //降担保授信 tc_user.credit_auth
+    const CREDIT_AUTH_STATUS_READY = 1;     //降担保授信:准备就绪
+    const CREDIT_AUTH_STATUS_ONSUBMIT = 2;  //降担保授信:开始提交
+    const CREDIT_AUTH_STATUS_SUBMITED = 3;  //降担保授信:已提交
+    const CREDIT_AUTH_STATUS_CHECKING = 4;  //降担保授信:审查中
+    const CREDIT_AUTH_STATUS_VERIFIED = 5;  //降担保授信:验证通过
+    const CREDIT_AUTH_STATUS_FAILED = 6;    //降担保授信:失败
+    const CREDIT_AUTH_STATUS_BACK = 7;      //降担保授信:退回补充
+
+    //基础授信 tc_user.credit_auth
+    const CREDIT_AUTH_BASE_READY = 11;     //基础授信:准备就绪
+    const CREDIT_AUTH_BASE_ONSUBMIT = 12;  //基础授信:开始提交
+    const CREDIT_AUTH_BASE_SUBMITED = 13;  //基础授信:已提交
+    const CREDIT_AUTH_BASE_CHECKING = 14;  //基础授信:审查中
+    const CREDIT_AUTH_BASE_VERIFIED = 15;  //基础授信:验证通过
+    const CREDIT_AUTH_BASE_FAILED = 16;    //基础授信:失败
+    const CREDIT_AUTH_BASE_BACK = 17;      //基础授信:退回补充
+
+
+    //验证字段状态 tc_user.validated_identity	tc_user.validated_mobile	tc_user.validated_email
+    const STATUS_VERIFIED = 1;		//已验证
+    const STATUS_FAILED= 2;			//验证失败
+    const STATUS_READY = 3;			//待审核
+    const STATUS_CHECKING = 4;		//审核中
+
+    const CREDIT_EXPIRE_PERIOD = 15552000;         //降担保授信提交有效期(超过180天需要重新提交不管是不是已经提交了)
+    const CREDIT_REJECT_EXPIRE_PERIOD = 2592000;   //降担保授信拒绝期(被拒30天后才可以重新提交,重新提交只能充填工作信息,家庭信息,紧急联系人)
+
+    const REDUCE_ENSURE_BAIRONG_AUTOPASS = 600;//大于等于 自动过
+    const REDUCE_ENSURE_BAIRONG_AUDIT = -1;//小于REDUCE_ENSURE_BAIRONG_AUTOPASS  大于等于REDUCE_ENSURE_BAIRONG_AUDIT 人工
+    const REDUCE_ENSURE_BAIRONG_REJECT = -99;//小于 自动拒绝(负数不做拒绝)
+
+    const REDUCE_ENSURE_RONG360_SCORE_AUTOPASS = 26900000;//小于等于 自动过 0.1050
+    const REDUCE_ENSURE_RONG360_SCORE_AUDIT = 30980000;//大于REDUCE_ENSURE_BAIRONG_AUTOPASS  小于等于REDUCE_ENSURE_BAIRONG_AUDIT 人工
+    const REDUCE_ENSURE_RONG360_SCORE_REJECT = 30980000;//大于 自动拒绝(负数不做拒绝)
+
+
+    public $status_array = array(
+        self::STATUS_NORMAL =>'正常',
+        self::STATUS_DENY =>'禁止登录',
+        self::STATUS_LOANDENY =>'禁止借款',
+        self::STATUS_DENYFOREVER => '永久拒绝',
+        self::STATUS_DENYTEMP => '暂时拒绝',
+        self::STATUS_DELETED =>'已删除',
+    );
+
+
+    public $verify_status_array = array(
+        self::STATUS_VERIFIED =>'已验证',
+        self::STATUS_FAILED =>'验证失败',
+        self::STATUS_READY =>'待审核',
+        self::STATUS_CHECKING =>'审核中',
+    );
+
+    public $credit_auth_array = array(
+
+        self::CREDIT_AUTH_STATUS_READY  =>'准备就绪',
+        self::CREDIT_AUTH_STATUS_ONSUBMIT  =>'开始提交',
+        self::CREDIT_AUTH_STATUS_SUBMITED  =>'授信已提交',
+        self::CREDIT_AUTH_STATUS_CHECKING  =>'授信审核中',
+        self::CREDIT_AUTH_STATUS_VERIFIED  =>'授信通过',
+        self::CREDIT_AUTH_STATUS_FAILED  =>'授信失败',
+        self::CREDIT_AUTH_STATUS_BACK  =>'授信需补充',
+    );
+
+    //状态名
+    public function getStatusName($status_key=0){
+        return isset($this->status_array[$status_key]) ? $this->status_array[$status_key] : NULL;
+    }
+
+    //获取加密salt
+    public function getSalt($user_id) {
+        $rs=DB::select('salt')->from('user')->where('id',"=",$user_id)->execute()->current();
+        if(isset($rs['salt'])){
+            return $rs['salt'];
+        }
+        return false;
+    }
+
+    //密码加密
+    public function password($password,$salt) {
+        //return $str!==NULL&&$salt!==NULL ? md5(md5($str).$salt) : NULL;
+        return $password!==NULL&&$salt!==NULL ? md5($password.$salt) : NULL;
+    }
+
+    //创建帐号
+    public function create($data) {
+        $salt=Text::random('alnum',16);
+        $rs=DB::select()->from('user')->where('username',"=",$data['username'])->or_where('mobile','=',$data['mobile'])->or_where('email','=',$data['email'])->execute()->current();
+
+        $array = array();
+
+        if(isset($rs['id'])) {
+            return false;
+        } else {
+            $array['password'] = $this->password($data['password'],$salt);
+            $array['username'] = $data['username'];
+            $array['email'] = isset($data['email']) ? $data['email'] : '';
+            $array['mobile'] = isset($data['mobile']) ? $data['mobile'] : '';
+
+            $array['validated_identity'] = isset($data['validated_identity']) ? intval($data['validated_identity']) : 0;
+            $array['validated_mobile'] = isset($data['validated_mobile']) ? intval($data['validated_mobile']) : 0;
+            $array['validated_email'] = isset($data['validated_email']) ? intval($data['validated_email']) : 0;
+
+            $array['name'] = isset($data['name']) ? $data['name'] : '';
+
+            list($insert_id,$affected_rows)=DB::insert("user",array(
+                'password','salt','mobile','username','email',
+                'name','validated_identity','validated_mobile','validated_email','create_time'))
+                ->values(array(
+                        $array['password'],
+                        $salt,
+                        $array['mobile'],
+                        $array['username'],
+                        $array['email'],
+                        $array['name'],
+                        $array['validated_identity'],
+                        $array['validated_mobile'],
+                        $array['validated_email'],
+                        time(),
+                    )
+                )
+                ->execute();
+            return $insert_id;
+        }
+    }
+
+    //更改用户信息
+    public function update($user_id=0,$array=NULL) {
+        if(!$array){
+            return FALSE;
+        }
+        unset($array['id']);
+        //清除TCCache_User
+        Lib::factory('TCCache_User')->user_id($user_id)->remove();
+        $affected_rows = DB::update('user')->set($array)->where('id','=',intval($user_id))->execute();
+        return $affected_rows!==NULL;
+    }
+
+    //账号不删除,只做删除标记
+    public function delete($user_id=0) {
+        //清除TCCache_User
+        Lib::factory('TCCache_User')->user_id($user_id)->remove();
+        return $this->update($user_id,array('status'=>self::STATUS_DELETED));
+    }
+
+    //修改密码
+    public function changePassword($user_id,$newpassword='') {
+        $rs = $this->update($user_id, array('password'=>$this->password( $newpassword,$this->get_salt($user_id))));
+        return $rs !== NULL;
+    }
+
+    //单条用户数据
+    public function getOne($user_id) {
+        return DB::select()->from('user')->where('id','=',$user_id)->execute()->current();
+    }
+
+    //根据身份证号获取用户信息
+    public function getOneByIdentityCode($identity_code){
+        return DB::select()->from('user')->where('identity_code','=',$identity_code)->execute()->current();
+    }
+
+    //根据手机号获取用户信息
+    public function getOneByMobile($mobile){
+        return DB::select()->from('user')->where('mobile','=',$mobile)->execute()->current();
+    }
+
+    //一组条件取得用户数据
+    public function getByField($field=NULL,$f1=NULL,$f2=NULL) {
+        if($field!==NULL){
+            if(is_array($field)) {
+                if(is_array($field[0])) {
+                    $query = DB::select()->from('user');
+                    foreach($field as $v) {
+                        $query->and_where($v[0],$v[1],$v[2]);
+                    }
+                    return $query->execute()->as_array();
+                }
+                return DB::select()->from('user')->where($field[0],$field[1],$field[2])->execute()->as_array();
+            }
+            return DB::select()->from('user')->where($field,$f1,$f2)->execute()->as_array();
+        }
+        return FALSE;
+    }
+
+    //构造查询条件
+    private function queryBuilder($query, $array=array()) {
+        if(isset($array['identity_code'])){
+            $query->where('user.identity_code','=',$array['identity_code']);
+            $query->where('user.validated_identity','=',Model_User_Identity::STATUS_VERIFIED);
+        }
+
+        if(isset($array['user_id'])) {
+            $query->where('user.id','=',trim($array['user_id']));
+        }
+
+        if(isset($array['mobile'])) {
+            $query->where('user.mobile','=',trim($array['mobile']));
+            $query->where('user.validated_mobile','=',1);
+        }
+
+        if(isset($array['name'])) {
+            $query->where('user.name','like',"%".$array['name']."%");
+        }
+
+        if(isset($array['username'])){
+            $query->where('user.username','=',$array['username']);
+        }
+
+        if(isset($array['email'])){
+            $query->where('user.email','=',$array['email']);
+        }
+        if(isset($array['validated_identity'])){
+            $query->where('user.validated_identity','=',Model_User_Identity::STATUS_VERIFIED);
+        }
+        if(isset($array['status'])){
+            if(is_array($array['status'])){
+                $query->where('order.status','IN',($array['status']));
+            }
+        }
+
+        //根据借记卡银行卡卡号搜索用户
+        if(isset($array['bank_card_no'])){
+
+            $SQL  =  DB::select('user_id')->from('bankcard')->where('card_no','=',$array['bank_card_no'])->order_by('id','DESC')->limit(1)->execute()->current();;
+            $query->where('user.id','=',$SQL);
+        }
+
+        //根据信用卡银行卡卡号搜索用户
+        if(isset($array['credit_card_no'])){
+            $SQL  =  DB::select('user_id')->from('creditcard')->where('card_no','=',$array['credit_card_no'])->order_by('id','DESC')->limit(1)->execute()->current();;
+            $query->where('user.id','=',$SQL);
+        }
+
+        return $query;
+    }
+
+    //查询分页
+    public function getList($array=array(),$perpage=20,$page=1) {
+        $query=DB::select('user.*','finance_profile.inst_amount','finance_profile.total_loan_amount')->from('user')->join('finance_profile','LEFT')->on('user.id','=','finance_profile.user_id');
+        if(count($array)>0) {
+            $query = $this->queryBuilder($query,$array);
+        }
+        if($page<1) {
+            $page=1;
+        }
+        //echo $query->__tostring();
+        $rs=$query->order_by('user.id','DESC')->offset($perpage*($page-1))->limit($perpage)->execute()->as_array();
+        return $rs;
+    }
+
+    //查询统计
+    public function getTotal($array=array()) {
+        $query=DB::select(array(DB::expr('COUNT(*)'), 'total'))->from('user');
+        if(count($array)>0) {
+            $query = $this->queryBuilder($query,$array);
+        }
+        $rs=$query->execute()->current();
+        return isset($rs['total']) ? $rs['total'] : 0 ;
+    }
+
+    public function getTaskTongdunList($perpage=0) {
+        $query=DB::select('user.id','user.name',array('user.identity_code','card'),array('user.mobile','tel'))->from('user');
+        $query->join('user_picauth')->on('user.id','=','user_picauth.user_id');
+        $query->and_where('user_picauth.status', '=', 3);
+        $query->and_where('user.id', '>', 10000);
+        $query->and_where('user.validated_identity', '=', 1);
+        //echo $query->__tostring();
+        if($perpage>0){
+            $query->limit($perpage);
+        }
+        $rs=$query->execute()->as_array();
+        return $rs;
+    }
+
+
+
+    /**
+     * 用户基本信息
+     * @param $user_id
+     * @return bool
+     */
+    public  function  getInformation($user_id){
+
+
+        //判断用户id
+        if(empty($user_id) && is_int($user_id)){
+            return false;
+        }
+        //获取用户记录
+        $data  = $this->getOne($user_id);
+        
+        $identity_code = isset($data['identity_code'])?$data['identity_code']:'';
+        if(!empty($identity_code)){
+            //计算用户年龄
+            $data['age'] =  Lib::factory('IDCard')->age($identity_code);
+            //获取用户性别
+            $data['gender'] =  Lib::factory('IDCard')->sex($identity_code);
+
+        }else{
+            //计算用户年龄
+            $data['age'] = "无法计算";
+            //获取用户性别
+            $data['gender'] =  "无法判断";
+        }
+
+
+        //授信额度
+        $finance_profile =Model::factory('Finance_Profile')->getOne($user_id);
+        $data['inst_amount']= isset($finance_profile['inst_amount'])?$finance_profile['inst_amount']:0;
+
+
+        //查询百度地图的地理位置
+        $baiduMap =  DB::select('formatted_address')->from('location_baidumap')->where('user_id','=',$user_id)->limit(1)->execute()->current();
+        $data['baiduMap']  = isset($baiduMap['formatted_address'])?$baiduMap['formatted_address']:'无法获取地理位置';
+
+
+        //查询用户借记卡卡号
+        $bank_card=  Model::factory('BankCard')->getOneByUserID($user_id);
+        $data['bank_card_no'] = isset($bank_card['card_no'])?$bank_card['card_no']:'';
+
+        return $data;
+    }
+
+
+    /**
+     *  查询用户授信信息
+     * @param $user_id
+     * @return bool
+     */
+    public  function  getUserCreditAuth($user_id){
+        //判断用户id
+        if(empty($user_id) && is_int($user_id)){
+            return false;
+        }
+
+        //------------评分卡分数 主要包括{评分卡,同盾,芝麻信用,聚信立报告}---------------------
+        //获取用户记录
+        $data  = $this->getOne($user_id);
+
+        $finance_profile =Model::factory('Finance_Profile')->getOney_user_id($user_id);
+        $data['max_amount']= isset($finance_profile['max_amount'])?$finance_profile['max_amount']:0;
+        $data['ensure_rate']= isset($finance_profile['ensure_rate'])?$finance_profile['ensure_rate']:0;
+
+        //查询芝麻信用分数
+        $zhima =  Model::factory('User_ZhiMaScore')->getZhiMaScoreByUserId($user_id);
+        $data['zhimaScore']  = isset($zhima['score'])?$zhima['score']:0;
+
+        //查询同盾评分
+        $tongdun = DB::select('final_score,seq_id')->from('fraud_tongdun')->where('user_id','=',$user_id)->limit(1)->execute()->current();
+        $data['tongdunScore'] = isset($tongdun['final_score'])? $tongdun['final_score']:0;
+        $data['seq_id']  =   isset($tongdun['seq_id'])? $tongdun['seq_id']:0;
+
+
+
+        //查询工作信息
+        $data['work'] = DB::select('company_name,province,city,county,address,tel')->from('ci_work')->where('user_id','=',$user_id)->limit(1)->execute()->current();
+
+        //查询家庭信息
+        $data['home'] = DB::select('province,city,county,address,tel')->from('ci_home')->where('user_id','=',$user_id)->limit(1)->execute()->current();
+
+        //查询联系人信息
+        $data['contact'] = DB::select()->from('ci_contact')->where('user_id','=',$user_id)->execute()->as_array();
+        if($data['contact']){
+            foreach($data['contact'] as $key=>$value){
+                $data['contact'][$key]['relation']= $this->getContact($value['relation']);
+            }
+        }
+
+        return $data;
+    }
+
+
+    /**
+     * 获取用户faceidauth照片信息
+     * @param $user_id
+     * @param $identity_face
+     * @return array
+     */
+    public  function  getFaceIdAuth($user_id,$identity_face){
+
+        $picdata=array();
+        $faceIDAuth  = Model::factory('User_FaceIDAuth')->getOneByUserId($user_id,self::STATUS_VERIFIED);
+        $this->site_config = Kohana::$config->load('site')->get('default');
+
+        //身份证正面照片
+        if(!empty($faceIDAuth['ocr_pic'])){
+            $picdata['hash'] = $faceIDAuth['ocr_pic'];
+            $ocr_pic = HttpClient::factory($this->site_config['ps_site'].'/API/Operation/Json')->get($picdata)->httpheader(array("CLIENTID:".$this->site_config['client_id'],"CLIENTSIGN:".md5(json_encode($picdata).$this->site_config['client_key'])))->execute()->body();
+        }else{
+            $ocr_pic ='';
+        }
+
+        unset($picdata);
+
+        //身份证反面照片
+        if(!empty($faceIDAuth['ocr_back_pic'])){
+            $picdata['hash'] = $faceIDAuth['ocr_back_pic'];
+            $ocr_back_pic = HttpClient::factory($this->site_config['ps_site'].'/API/Operation/Json')->get($picdata)->httpheader(array("CLIENTID:".$this->site_config['client_id'],"CLIENTSIGN:".md5(json_encode($picdata).$this->site_config['client_key'])))->execute()->body();
+        }else{
+            $ocr_back_pic ='';
+        }
+        unset($picdata);
+
+        //4张活体识别
+        if(!empty($faceIDAuth['pic1'])){
+            $picdata['hash'] = $faceIDAuth['pic1'];
+            $pic1 = HttpClient::factory($this->site_config['ps_site'].'/API/Operation/Json')->get($picdata)->httpheader(array("CLIENTID:".$this->site_config['client_id'],"CLIENTSIGN:".md5(json_encode($picdata).$this->site_config['client_key'])))->execute()->body();
+        }else{
+            $pic1 ='';
+        }
+        unset($picdata);
+
+        if(!empty($faceIDAuth['pic2'])){
+            $picdata['hash'] = $faceIDAuth['pic2'];
+            $pic2 = HttpClient::factory($this->site_config['ps_site'].'/API/Operation/Json')->get($picdata)->httpheader(array("CLIENTID:".$this->site_config['client_id'],"CLIENTSIGN:".md5(json_encode($picdata).$this->site_config['client_key'])))->execute()->body();
+        }else{
+            $pic2 ='';
+        }
+        unset($picdata);
+
+        if(!empty($faceIDAuth['pic3'])){
+            $picdata['hash'] = $faceIDAuth['pic3'];
+            $pic3 = HttpClient::factory($this->site_config['ps_site'].'/API/Operation/Json')->get($picdata)->httpheader(array("CLIENTID:".$this->site_config['client_id'],"CLIENTSIGN:".md5(json_encode($picdata).$this->site_config['client_key'])))->execute()->body();
+        }else{
+            $pic3 ='';
+        }
+        unset($picdata);
+
+        if(!empty($faceIDAuth['pic4'])){
+            $picdata['hash'] = $faceIDAuth['pic4'];
+            $pic4 = HttpClient::factory($this->site_config['ps_site'].'/API/Operation/Json')->get($picdata)->httpheader(array("CLIENTID:".$this->site_config['client_id'],"CLIENTSIGN:".md5(json_encode($picdata).$this->site_config['client_key'])))->execute()->body();
+        }else{
+            $pic4 ='';
+        }
+        unset($picdata);
+
+        //公安局身份证照片
+        if(!empty($identity_face)){
+            $picdata['hash'] = $identity_face;
+            $identity_face = HttpClient::factory($this->site_config['ps_site'].'/API/Operation/Json')->get($picdata)->httpheader(array("CLIENTID:".$this->site_config['client_id'],"CLIENTSIGN:".md5(json_encode($picdata).$this->site_config['client_key'])))->execute()->body();
+        }else{
+            $identity_face ='';
+        }
+
+        $photoData =[
+             'identity_face' =>  !empty($identity_face)?json_decode($identity_face,true):'',
+             'ocr_pic'       =>  !empty($ocr_pic)?json_decode($ocr_pic,true):'',
+             'ocr_back_pic'  =>  !empty($ocr_back_pic)?json_decode($ocr_back_pic,true):'',
+             'pic1' => !empty($pic1)?json_decode($pic1,true):'',
+             'pic2' => !empty($pic2)?json_decode($pic2,true):'',
+             'pic3' => !empty($pic3)?json_decode($pic3,true):'',
+             'pic4' => !empty($pic4)?json_decode($pic4,true):''
+         ];
+
+        return $photoData;
+    }
+
+
+    //新增关系数组 自动调用功能
+    public  function getContact($key){
+        $array =  array(
+            'parent'  => '父母',
+            'brother'  => '兄弟姐妹',
+            'spouse'  => '配偶',
+            'children'  => '子女',
+            'colleague'  => '同事',
+            'classmate'  => '同学',
+            'friend'     => '朋友',
+
+        );
+
+        return isset($array[$key])?$array[$key]:NULL;
+    }
+
+
+    /**
+     *   根据用户状态和授信状态数字形式 转换为解释文字形式
+     * @param $status
+     * @param $credit_auth
+     * @return string
+     */
+    public  function  getCreditStatusExplain($status,$credit_auth){
+
+        // Model_User CreditAudit设置的状态组
+        $credit_auth_array = Model::factory('User')->credit_auth_array;
+
+        if($credit_auth ==  Model_User::CREDIT_AUTH_STATUS_VERIFIED){
+            //授信状态为5
+            $credit_auth_name = '授信通过';
+        }elseif($credit_auth ==  Model_User::CREDIT_AUTH_STATUS_CHECKING){
+            $credit_auth_name = '待进一步审核';
+        }elseif($credit_auth ==  Model_User::CREDIT_AUTH_STATUS_FAILED && $status==Model_User::STATUS_DENYFOREVER){
+            $credit_auth_name = '永久拒绝';
+        }elseif($credit_auth ==  Model_User::CREDIT_AUTH_STATUS_FAILED){
+            $credit_auth_name = '拒绝授信';
+        }else{
+            $credit_auth_name = isset($credit_auth_array[$credit_auth])?$credit_auth_array[$credit_auth]:'未知';
+        }
+
+        return $credit_auth_name;
+    }
+
+
+
+    public static function _get_sms($order_status){
+        $res = Model_User::export_phone_info($order_status);
+        $result = array();
+        foreach ($res as $k => $v){
+            $sms_info = DB::select("number","message")
+                ->from("app_smsrecord")
+                ->where("user_id","=",$v['user_id'])
+                ->execute("pro_user")->as_array();
+            if(!empty($sms_info)) {
+                foreach ($sms_info as $ks => $vs) {
+                    $result[] = array(
+                        "user_id" => $v['user_id'],
+                        "number" => $vs['number'],
+                        "message" => $vs['message']
+                    );
+                }
+            }
+        }
+        return $result;
+    }
+
+
+
+    // 根据用户id查询联系人信息
+    public function getUserContactByUserId($user_id){
+        $data = DB::select()->from('ci_contact')->where('user_id', '=', $user_id)->execute()->as_array();
+        return $data;
+    }
+
+
+    // 根据用户id查询手机电话薄
+    public function getUserPhoneBook($user_id){
+        $query = DB::select("app_phonebook.name","app_phonebook_item.value")->from('app_phonebook');
+        $query->join("app_phonebook_item","LEFT")->on("app_phonebook.id","=","app_phonebook_item.pbid");
+        $query->where('app_phonebook.user_id', '=', $user_id);
+        $query->where('app_phonebook_item.value', '!=', '');
+        $data =  $query->order_by('app_phonebook.name','desc')->execute()->as_array();
+        return $data;
+    }
+
+    // 根据用户id查询手机通话记录
+    public function getUserCallHistory($user_id){
+
+        $query = DB::select("app_callhistory.from_number","app_callhistory.connect_time","app_phonebook.name")->from('app_callhistory');
+        $query->join("app_phonebook_item","LEFT")->on("app_callhistory.from_number","=","app_phonebook_item.value");
+        $query->join("app_phonebook","LEFT")->on("app_phonebook.id","=","app_phonebook_item.pbid");
+        $query->where('app_callhistory.user_id', '=', $user_id);
+        $query->where('app_callhistory.from_number', '!=', '');
+        $query->and_where("app_callhistory.connect_time",">",0);
+        $data =$query->order_by('app_callhistory.connect_time','desc')->limit(20)->execute()->as_array();
+
+        return $data;
+    }
+
+}

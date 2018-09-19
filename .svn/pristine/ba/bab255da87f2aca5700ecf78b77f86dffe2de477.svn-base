@@ -1,0 +1,60 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+
+/**
+ * Created by PhpStorm.
+ * User: admin
+ * Date: 2018/1/17
+ * Time: 下午3:11
+ *
+ * 准入决策简报model
+ *
+ */
+class Model_AdmissionShort extends Model_Database
+{
+
+    const STATUS_VALID    = 1;   //有效
+    const STATUS_INVALID  = 2;   //无效
+
+    const RULER_ZRQ10001  = 'ZRQ10001';
+    const RULER_ZRQ10002  = 'ZRQ10002';
+    const RULER_ZRQ10003  = 'ZRQ10003';
+    const RULER_ZRQ10004  = 'ZRQ10004';
+    const RULER_ZRQ10005  = 'ZRQ10005';
+    const RULER_ZRQ10006  = 'ZRQ10006';
+    const RULER_ZRQ10007  = 'ZRQ10007';
+    const RULER_ZRQ10008  = 'ZRQ10008';
+    const RULER_ZRQ10009  = 'ZRQ10009';
+    const RULER_ZRQ100010 = 'ZRQ100010';
+    const RULER_ZRQ100011 = 'ZRQ100011';
+
+    const RULERS = [
+        self::RULER_ZRQ10001  => '年龄小于22周岁或大于45周岁',
+        self::RULER_ZRQ10002  => '工作地定位、现居住地定位、当前设备定位省份任意项是新疆或西藏',
+        self::RULER_ZRQ10003  => '工作地定位、现居住地定位、当前设备定位省份任意项是延边朝鲜族自治州',
+        self::RULER_ZRQ10004  => '用户填写单位名称中，若字段中包含“小额贷款、小贷、担保、互联网 金融、互联网金融服务、金融服务 OR金融信息服务、金融信息咨询、 金融科技”任一词',
+        self::RULER_ZRQ10005  => '用户填写单位名称中，若字段中包“公安局、派出所、检察院、法院、监狱、看守所、拘留所”任一词',
+        self::RULER_ZRQ10006  => '用户填写单位名称中，若字段中包“解放军、武警及陆、海、空军”，且不包含“医院”;',
+        self::RULER_ZRQ10007  => '芝麻信用分小于600',
+        self::RULER_ZRQ10008  => '用户发起授信申请时，对用户注册时间进行判断，注册时间为凌晨3:00(含)-5:00(含)时间段内',
+        self::RULER_ZRQ10009  => '若用户申请授信时间为凌晨1:00(含)-6:00(含)时间段内',
+        self::RULER_ZRQ100010 => '通过OCR对身份证反面有效期进行验证，若有效期截止 日期距离申请日期小于等于30天',
+        self::RULER_ZRQ100011 => '手机号或身份证号命中我司自有黑名单',
+    ];
+
+
+    /**
+     * 新增简报数据
+     * @param $user_id
+     * @param $module
+     * @param $result
+     */
+    public function add_short($user_id, $module, $result)
+    {
+        $ret = DB::insert('admission_short', ['user_id', 'module', 'result', 'create_time'])
+                ->values([$user_id, $module, $result, time()])
+                ->execute();
+
+        return $ret;
+    }
+}

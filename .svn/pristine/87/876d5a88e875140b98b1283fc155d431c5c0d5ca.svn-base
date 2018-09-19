@@ -1,0 +1,340 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: wangchao
+ * Date: 2018/1/24
+ * Time: 下午8:41
+ */
+class Lib_CreditReview_BaiRong extends Lib_CreditReview_RiskCommon
+
+{
+
+    const ANTI_FRAUD = [
+        'SpecialList_c'     => [
+            'flag'     => ['flag_specialList_c' => 1],
+            'rule'      => [
+                'sl_id_court_bad'               => [0, 1, 2],
+                'sl_id_court_executed'          => [0, 1, 2],
+                'sl_id_bank_bad'                => [0, 1, 2],
+                'sl_id_bank_fraud'              => [0, 1, 2],
+                'sl_id_bank_lost'               => [0, 1, 2],
+                'sl_id_p2p_bad'                 => [0, 1, 2],
+                'sl_id_p2p_fraud'               => [0, 1, 2],
+                'sl_id_p2p_lost'                => [0, 1, 2],
+                'sl_id_nbank_p2p_bad'           => [0, 1, 2],
+                'sl_id_nbank_p2p_fraud'         => [0, 1, 2],
+                'sl_id_nbank_p2p_lost'          => [0, 1, 2],
+                'sl_id_nbank_mc_bad'            => [0, 1, 2],
+                'sl_id_nbank_mc_fraud'          => [0, 1, 2],
+                'sl_id_nbank_mc_lost'           => [0, 1, 2],
+                'sl_id_nbank_ca_bad'            => [0, 1, 2],
+                'sl_id_nbank_ca_fraud'          => [0, 1, 2],
+                'sl_id_nbank_ca_lost'           => [0, 1, 2],
+                'sl_id_nbank_com_bad'           => [0, 1, 2],
+                'sl_id_nbank_com_fraud'         => [0, 1, 2],
+                'sl_id_nbank_com_lost'          => [0, 1, 2],
+                'sl_id_nbank_cf_bad'            => [0, 1, 2],
+                'sl_id_nbank_cf_fraud'          => [0, 1, 2],
+                'sl_id_nbank_cf_lost'           => [0, 1, 2],
+                'sl_id_nbank_other_bad'         => [0, 1, 2],
+                'sl_id_nbank_other_fraud'       => [0, 1, 2],
+                'sl_id_nbank_other_lost'        => [0, 1, 2],
+                'sl_cell_bank_bad'              => [0, 1, 2],
+                'sl_cell_bank_fraud'            => [0, 1, 2],
+                'sl_cell_bank_lost'             => [0, 1, 2],
+                'sl_cell_p2p_bad'               => [0, 1, 2],
+                'sl_cell_p2p_fraud'             => [0, 1, 2],
+                'sl_cell_p2p_lost'              => [0, 1, 2],
+                'sl_cell_nbank_p2p_bad'         => [0, 1, 2],
+                'sl_cell_nbank_p2p_fraud'       => [0, 1, 2],
+                'sl_cell_nbank_p2p_lost'        => [0, 1, 2],
+                'sl_cell_nbank_mc_bad'          => [0, 1, 2],
+                'sl_cell_nbank_mc_fraud'        => [0, 1, 2],
+                'sl_cell_nbank_mc_lost'         => [0, 1, 2],
+                'sl_cell_nbank_ca_bad'          => [0, 1, 2],
+                'sl_cell_nbank_ca_fraud'        => [0, 1, 2],
+                'sl_cell_nbank_ca_lost'         => [0, 1, 2],
+                'sl_cell_nbank_com_bad'         => [0, 1, 2],
+                'sl_cell_nbank_com_fraud'       => [0, 1, 2],
+                'sl_cell_nbank_com_lost'        => [0, 1, 2],
+                'sl_cell_nbank_cf_bad'          => [0, 1, 2],
+                'sl_cell_nbank_cf_fraud'        => [0, 1, 2],
+                'sl_cell_nbank_cf_lost'         => [0, 1, 2],
+                'sl_cell_nbank_other_bad'       => [0, 1, 2],
+                'sl_cell_nbank_other_fraud'     => [0, 1, 2],
+                'sl_cell_nbank_other_lost'      => [0, 1, 2],
+                'sl_lm_cell_bank_bad'           => [0, 1, 2],
+                'sl_lm_cell_bank_fraud'         => [0, 1, 2],
+                'sl_lm_cell_bank_lost'          => [0, 1, 2],
+                'sl_lm_cell_nbank_p2p_bad'      => [0, 1, 2],
+                'sl_lm_cell_nbank_p2p_fraud'    => [0, 1, 2],
+                'sl_lm_cell_nbank_p2p_lost'     => [0, 1, 2],
+                'sl_lm_cell_nbank_mc_bad'       => [0, 1, 2],
+                'sl_lm_cell_nbank_mc_fraud'     => [0, 1, 2],
+                'sl_lm_cell_nbank_mc_lost'      => [0, 1, 2],
+                'sl_lm_cell_nbank_ca_bad'       => [0, 1, 2],
+                'sl_lm_cell_nbank_ca_fraud'     => [0, 1, 2],
+                'sl_lm_cell_nbank_ca_lost'      => [0, 1, 2],
+                'sl_lm_cell_nbank_com_bad'      => [0, 1, 2],
+                'sl_lm_cell_nbank_com_fraud'    => [0, 1, 2],
+                'sl_lm_cell_nbank_com_lost'     => [0, 1, 2],
+                'sl_lm_cell_nbank_cf_bad'       => [0, 1, 2],
+                'sl_lm_cell_nbank_cf_fraud'     => [0, 1, 2],
+                'sl_lm_cell_nbank_cf_lost'      => [0, 1, 2],
+                'sl_lm_cell_nbank_other_bad'    => [0, 1, 2],
+                'sl_lm_cell_nbank_other_fraud'  => [0, 1, 2],
+                'sl_lm_cell_nbank_other_lost'   => [0, 1, 2],
+            ],
+            'callback'  => ['Lib_AntiFraud_BaiRong', 'callback_SpecialList_c'],
+        ],
+        'SpecialList_c_contact'     => [
+            'flag'      => ['flag_specialList_c' => 1],
+            'rule'     => [
+                'user'  => [
+                    'sl_id_court_bad'               => [0, 1, 2],
+                    'sl_id_court_executed'          => [0, 1, 2],
+                    'sl_id_bank_bad'                => [0, 1, 2],
+                    'sl_id_bank_fraud'              => [0, 1, 2],
+                    'sl_id_bank_lost'               => [0, 1, 2],
+                    'sl_id_p2p_bad'                 => [0, 1, 2],
+                    'sl_id_p2p_fraud'               => [0, 1, 2],
+                    'sl_id_p2p_lost'                => [0, 1, 2],
+                    'sl_id_nbank_p2p_bad'           => [0, 1, 2],
+                    'sl_id_nbank_p2p_fraud'         => [0, 1, 2],
+                    'sl_id_nbank_p2p_lost'          => [0, 1, 2],
+                    'sl_id_nbank_mc_bad'            => [0, 1, 2],
+                    'sl_id_nbank_mc_fraud'          => [0, 1, 2],
+                    'sl_id_nbank_mc_lost'           => [0, 1, 2],
+                    'sl_id_nbank_ca_bad'            => [0, 1, 2],
+                    'sl_id_nbank_ca_fraud'          => [0, 1, 2],
+                    'sl_id_nbank_ca_lost'           => [0, 1, 2],
+                    'sl_id_nbank_com_bad'           => [0, 1, 2],
+                    'sl_id_nbank_com_fraud'         => [0, 1, 2],
+                    'sl_id_nbank_com_lost'          => [0, 1, 2],
+                    'sl_id_nbank_cf_bad'            => [0, 1, 2],
+                    'sl_id_nbank_cf_fraud'          => [0, 1, 2],
+                    'sl_id_nbank_cf_lost'           => [0, 1, 2],
+                    'sl_id_nbank_other_bad'         => [0, 1, 2],
+                    'sl_id_nbank_other_fraud'       => [0, 1, 2],
+                    'sl_id_nbank_other_lost'        => [0, 1, 2],
+                    'sl_cell_bank_bad'              => [0, 1, 2],
+                    'sl_cell_bank_fraud'            => [0, 1, 2],
+                    'sl_cell_bank_lost'             => [0, 1, 2],
+                    'sl_cell_p2p_bad'               => [0, 1, 2],
+                    'sl_cell_p2p_fraud'             => [0, 1, 2],
+                    'sl_cell_p2p_lost'              => [0, 1, 2],
+                    'sl_cell_nbank_p2p_bad'         => [0, 1, 2],
+                    'sl_cell_nbank_p2p_fraud'       => [0, 1, 2],
+                    'sl_cell_nbank_p2p_lost'        => [0, 1, 2],
+                    'sl_cell_nbank_mc_bad'          => [0, 1, 2],
+                    'sl_cell_nbank_mc_fraud'        => [0, 1, 2],
+                    'sl_cell_nbank_mc_lost'         => [0, 1, 2],
+                    'sl_cell_nbank_ca_bad'          => [0, 1, 2],
+                    'sl_cell_nbank_ca_fraud'        => [0, 1, 2],
+                    'sl_cell_nbank_ca_lost'         => [0, 1, 2],
+                    'sl_cell_nbank_com_bad'         => [0, 1, 2],
+                    'sl_cell_nbank_com_fraud'       => [0, 1, 2],
+                    'sl_cell_nbank_com_lost'        => [0, 1, 2],
+                    'sl_cell_nbank_cf_bad'          => [0, 1, 2],
+                    'sl_cell_nbank_cf_fraud'        => [0, 1, 2],
+                    'sl_cell_nbank_cf_lost'         => [0, 1, 2],
+                    'sl_cell_nbank_other_bad'       => [0, 1, 2],
+                    'sl_cell_nbank_other_fraud'     => [0, 1, 2],
+                    'sl_cell_nbank_other_lost'      => [0, 1, 2],
+                ],
+                'contact' => [
+                    'sl_lm_cell_bank_bad'           => [0, 1, 2],
+                    'sl_lm_cell_bank_fraud'         => [0, 1, 2],
+                    'sl_lm_cell_bank_lost'          => [0, 1, 2],
+                    'sl_lm_cell_nbank_p2p_bad'      => [0, 1, 2],
+                    'sl_lm_cell_nbank_p2p_fraud'    => [0, 1, 2],
+                    'sl_lm_cell_nbank_p2p_lost'     => [0, 1, 2],
+                    'sl_lm_cell_nbank_mc_bad'       => [0, 1, 2],
+                    'sl_lm_cell_nbank_mc_fraud'     => [0, 1, 2],
+                    'sl_lm_cell_nbank_mc_lost'      => [0, 1, 2],
+                    'sl_lm_cell_nbank_ca_bad'       => [0, 1, 2],
+                    'sl_lm_cell_nbank_ca_fraud'     => [0, 1, 2],
+                    'sl_lm_cell_nbank_ca_lost'      => [0, 1, 2],
+                    'sl_lm_cell_nbank_com_bad'      => [0, 1, 2],
+                    'sl_lm_cell_nbank_com_fraud'    => [0, 1, 2],
+                    'sl_lm_cell_nbank_com_lost'     => [0, 1, 2],
+                    'sl_lm_cell_nbank_cf_bad'       => [0, 1, 2],
+                    'sl_lm_cell_nbank_cf_fraud'     => [0, 1, 2],
+                    'sl_lm_cell_nbank_cf_lost'      => [0, 1, 2],
+                    'sl_lm_cell_nbank_other_bad'    => [0, 1, 2],
+                    'sl_lm_cell_nbank_other_fraud'  => [0, 1, 2],
+                    'sl_lm_cell_nbank_other_lost'   => [0, 1, 2],
+                ]
+
+            ],
+            'callback'  => ['Lib_AntiFraud_BaiRong', 'callback_SpecialList_c_contact'],
+        ],
+        'ApplyLoan' => [
+            'flag'  => ['flag_applyLoan' => 1],
+            'rule'  => [
+                'al_m3_id_bank_allnum'      => 10,
+                'al_m3_cell_bank_allnum'    => 10,
+                'al_m6_id_bank_allnum'      => 15,
+                'al_m6_cell_bank_allnum'    => 15,
+                'al_m12_cell_bank_allnum'   => 20,
+                'al_m12_id_bank_orgnum'     => 20,
+            ],
+            'callback'  => ['Lib_AntiFraud_BaiRong', 'callback_ApplyLoan'],
+        ],
+        'Execution' => [
+            'flag'  => ['flag_execution' => 1],
+            'rule'  => [
+                'ex_bad1_name',
+                'ex_bad1_cid'
+            ],
+            'callback'  => ['Lib_AntiFraud_BaiRong', 'callback_Execution'],
+        ],
+        'scorepettycashv1'  => [
+            'flag'          => ['flag_score' => 1],
+            'rule'          => 'scorepettycashv1',
+            'callback'      => ['Lib_AntiFraud_BaiRong', 'callback_scorepettycashv1'],
+        ],
+        'TelCheck' => [
+            'flag'          => ['result' => 1],
+            'callback'      => ['Lib_AntiFraud_BaiRong', 'callback_TelCheck'],
+        ],
+        'TelPeriod' => [
+            'flag'          => ['result' => 1],
+            'rule'          => [
+                '1' => '6',  // [0,6]
+                '2' => '12', // [6,12]
+                '3' => '24', // [12,24]
+                '4' => '25', // [24,+]
+            ],
+            'callback'      => ['Lib_AntiFraud_BaiRong', 'callback_TelPeriod'],
+        ],
+        'TelPeriodCheck' => [//百融更换新接口模块名称,API自动将老模块转为新模块
+            'flag'          => ['result' => 1],
+            'rule'          => '2',
+            'callback'      => ['Lib_AntiFraud_BaiRong', 'callback_TelPeriodCheck'],
+        ],
+    ];
+
+    protected $action;
+
+    const PROVIDER = "TongDun";
+
+    //特殊名单查询
+    public function query(){
+        $user_data = Model::factory('User')->get_one($this->user_id);
+        if(empty($user_data) or (!in_array($this->action, array_keys(self::ANTI_FRAUD)))){
+            return false;
+        }
+        $this->short_data = Model::factory('AntiFraud_BaiRong')->get_short_one_by_user_id($this->user_id, $this->action);
+        if(empty($this->short_data)){
+            Model::factory('AntiFraud_BaiRong')->add_short(['user_id' => $this->user_id, 'module' => $this->action,'create_time' => time()]);
+            $this->short_data = Model::factory('AntiFraud_BaiRong')->get_short_one_by_user_id($this->user_id, $this->action);
+        }
+
+
+        // 组织数据
+        $data = [
+            'targetList'  => [
+                [
+                    'user_id'       => $user_data['id'],
+                    'name'          => $user_data['name'],
+                    'id'            => $user_data['identity_code'],
+                    'cell'          => $user_data['mobile'],
+                ]
+            ],
+            'headerTitle' => [$this->action == 'TelPeriodCheck' ? 'TelPeriod' : $this->action]
+        ];
+
+        if(in_array($this->action, ['SpecialList_c_contact'])){
+            $data['headerTitle'] = ['SpecialList_c'];
+            $user_contact_data = Model::factory('User')->get_user_contact_by_user_id($this->user_id);
+            if(!empty($user_contact_data)){
+                $linkman_cell = [];
+                foreach ($user_contact_data as $contact){
+                    $linkman_cell[] = $contact['mobile'];
+                }
+                $data['targetList'][0]['linkman_cell'] = $linkman_cell;
+            }
+        }
+        $response_data = Lib::factory("Risk_API")->anti('BaiRong')->query(
+            'execute', $data
+        )->execute()->body();
+
+        // 保存记录
+        Model::factory('AntiFraud_BaiRong')->add_bairong_data(['user_id' => $this->user_id, 'module' => $this->action == 'TelPeriodCheck' ? 'TelPeriod' : $this->action, 'request_data' => json_encode($data), 'response_data' => json_encode($response_data['api_result']), 'create_time' => time()]);
+        if(is_array($response_data)){
+            $this->response(true, [], Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, '接口请求成功');
+        }else{
+            $this->response(false, [], Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, '接口异常');
+        }
+        return $this;
+    }
+
+    //多次申请查询
+    public function ApplyLoan(){
+        $result = Lib::factory("Risk_API")->anti('BaiRong')->query(
+            'execute', [
+                'targetList'=>[
+                    0=>[
+                        'user_id' =>'1000005',
+                        'name' =>'张占良',
+                        'id' =>'142732199203263218',
+                        'cell' =>'18310824510'
+                    ]
+                ],
+                'headerTitle'=>[
+                    'ApplyLoan'
+                ]
+            ]
+        )->execute()->body();
+    }
+
+
+
+    //第一步远程请求
+    public function getData($action)
+    {
+        if ($action) {
+            $this->action = $action;
+            call_user_func_array('self::'.'query', ['data' => []]);
+        } else {
+            $this->response(false, [], Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, '缺少参数 action');
+        }
+
+        return $this;
+    }
+
+    //第二步 获取数据并发送
+
+    public function sendData($action)
+    {
+        $Original = Model::factory("Moxie_Report")->get_report($this->user_id, $action, 1);
+        $Report = Model::factory("Moxie_Report")->get_report($this->user_id, $action, 2);
+
+        if (isset($Original['data']) && isset($Report['data'])) {
+            $data = [
+                'data' => [
+                    'Original' => $Original['data'],
+                    'Report' => $Report['data'],
+                ],
+                'provider' => self::PROVIDER,
+                'action' => $action,
+            ];
+        }
+
+        $this->send($data, self::PROVIDER, $action);
+
+        return $this;
+    }
+
+    //第三步 获取决策
+
+    public function getDecision($action)
+    {
+        $this->get(self::PROVIDER, $action);
+
+        return $this;
+    }
+
+
+}

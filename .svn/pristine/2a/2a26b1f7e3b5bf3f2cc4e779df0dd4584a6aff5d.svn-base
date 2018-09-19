@@ -1,0 +1,121 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by IntelliJ IDEA.
+ * User: yangyuexin
+ * Date: 2018/1/10
+ * Time: 下午2:15
+ */
+class Lib_Risk_API_Jinrong91_API extends Lib_Common
+{
+
+    /**
+     * 获取trxno
+     * @param $request
+     * @return bool|mixed|string
+     */
+    public function getTrxno($request)
+    {
+        if (!isset($request['user_id'])) {
+            return $this->returnData('no',[],'缺少user_id');
+        }
+       //通过user_id 获取用户信息
+        $userinfo=Model::factory('User')->get_one($request['user_id']);
+        if(!$userinfo){
+            return $this->returnData('no',[],'错误的user_id');
+        }
+        $re= new Lib_Risk_API_Jinrong91_API_post();
+        $result = $re->getinfo($userinfo['name'],$userinfo['identity_code']);
+        if($result['retcode']=='0000'){
+            $resultbody=json_decode($result['msgbody'],true);
+            //插入查询表
+            $array=['trxno'=>$resultbody["trxNo"],'name'=>$userinfo['name'],'identity_code'=>$userinfo['identity_code'],'user_id'=>$request['user_id'],'action'=>$request['action'],'create_time'=>time(),'selectstate'=>0,'trxnostate'=>0];
+            $insert_id=Model::factory('Jinrong91_Data')->insert($array);
+            if($insert_id>0){
+                $infoarray=['insert_id'=>$insert_id,'trxno'=>$resultbody["trxNo"]];
+                return $this->returnData('yes',$infoarray,'返回数据成功');
+            }else{
+                return $this->returnData('no',[],'插入数据失败');
+            }
+        }else{
+            return $this->returnData('no',[],isset($result['retmsg'])?$result['retmsg']:'获取数据失败');
+        }
+    }
+
+    /**
+     * 通过trxno获取内容
+     * @param $request
+     * @return bool|mixed|string
+     */
+    public function getInfo($request)
+    {
+        if (!isset($request['user_id'])) {
+            return $this->returnData('no',[],'缺少参数user_id');
+        }
+        //通过user_id查询查询号
+        $result=Model::factory('Jinrong91_Data')->getOneByAction($request['user_id'],$request['action']);
+        if(!$result){
+            $this->returnData('no',[],'获取trxno记录失败');
+        }
+
+        $re= new Lib_Risk_API_Jinrong91_API_post();
+        $resultinfo = $re->getinfoactive($result['trxno']);
+        if($resultinfo!=''&&$resultinfo!=null){
+            //将内容入库
+            $array=['content'=>$resultinfo];
+            $re=Model::factory('Jinrong91_Data')->update($result['id'],$array);
+//            $result=json_decode($resultinfo,true);
+//            $result['infoId']='1234567';
+//            $result['trxNo'];
+//            $result['userInfo']=['name'=>'陈水金','identity_code'=>'350424198301082038','user_id'=>'12345678'];
+            if($re){
+                return $this->returnData('yes',$resultinfo,'保存获取内容成功');
+            }else{
+                return $this->returnData('no',[],'获取内容入库失败');
+            }
+        }else{
+            return $this->returnData('no',[],'接口内容获取失败');
+        }
+    }
+
+    /**
+     * 将数据推向第三方进行决策，返回决策结果
+     */
+    public function pushThird($request)
+    {
+        if (!isset($request['user_id'])) {
+            return $this->returnData('no',[],'缺少参数user_id');
+        }
+        $result=Model::factory('Jinrong91_Data')->getOneByUserId($request['user_id']);
+        if($result){
+            if($result['content']==''||$result['content']==null){
+                return $this->returnData('no',[],'没有推送内容');
+            }else{
+                $data=[];
+                $data['data']=$result['content'];
+                $data['provider']='Jinrong91';
+                $data['action']='RiskService';
+                $re=DClient::factory("send")->user_id($request['user_id'])->post($data,'Inst'.time())->execute()->body();
+                if($re!=''&&$re!=null){
+                    return $this->returnData('yes',$re,'推送成功');
+                }else{
+                    return $this->returnData('no',[],'推送失败');
+                }
+
+            }
+        }else{
+            return $this->returnData('no',[],'未查到相关记录');
+        }
+    }
+    public function returnData($status,$array,$message=null)
+    {
+        $data=[];
+        $data['data']=$array;
+        $data['status']=$status;
+        $data['message']=$message;
+        return $data;
+
+    }
+
+
+}

@@ -1,0 +1,15 @@
+<?php defined('SYSPATH') OR die('No direct script access.'); ?>
+
+2017-08-18 19:47:56 --- EMERGENCY: Database_Exception [ 42S02 ]: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'wuliu3.tc_ps_log' doesn't exist [ INSERT INTO tc_ps_log (req_data, msg, status, resp_data, provider, action, create_time) VALUES ('\"[[],{\\\"json\\\":\\\"{\\\\\\\"list\\\\\\\":\\\\\\\"wuliu\\\\\\\"}\\\"}]\"', '请求信息错误', '0', '{\"status\":false,\"msg\":\"\\u8bf7\\u6c42\\u4fe1\\u606f\\u9519\\u8bef\"}', 'Upload', 'Upload', '17-08-18 07:47:56') ] ~ MODPATH/database/classes/Kohana/Database/PDO.php [ 157 ] in /alidata1/www/wl/ps/modules/database/classes/Kohana/Database/Query.php:251
+2017-08-18 19:47:56 --- DEBUG: #0 /alidata1/www/wl/ps/modules/database/classes/Kohana/Database/Query.php(251): Kohana_Database_PDO->query(2, 'INSERT INTO tc_...', false, Array)
+#1 /alidata1/www/wl/ps/application/classes/Model/Upload/DbOperation.php(261): Kohana_Database_Query->execute()
+#2 /alidata1/www/wl/ps/application/classes/AdminController.php(325): Model_Upload_DbOperation->message_log(Array)
+#3 /alidata1/www/wl/ps/application/classes/AdminController.php(230): AdminController->_render(Array)
+#4 /alidata1/www/wl/ps/application/classes/Controller/API/Upload.php(30): AdminController->upload_check()
+#5 /alidata1/www/wl/framework/kohana/system/classes/Kohana/Controller.php(84): Controller_API_Upload->action_Upload()
+#6 [internal function]: Kohana_Controller->execute()
+#7 /alidata1/www/wl/framework/kohana/system/classes/Kohana/Request/Client/Internal.php(97): ReflectionMethod->invoke(Object(Controller_API_Upload))
+#8 /alidata1/www/wl/framework/kohana/system/classes/Kohana/Request/Client.php(114): Kohana_Request_Client_Internal->execute_request(Object(Request), Object(Response))
+#9 /alidata1/www/wl/framework/kohana/system/classes/Kohana/Request.php(993): Kohana_Request_Client->execute(Object(Request))
+#10 /alidata1/www/wl/ps/index.php(118): Kohana_Request->execute()
+#11 {main} in /alidata1/www/wl/ps/modules/database/classes/Kohana/Database/Query.php:251

@@ -1,0 +1,225 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * Permission: wangxuesong
+ * Date: 16/7/19
+ * Time: 下午4:17
+ *
+ * 新增授信审核
+ *
+ */
+
+class Model_User_CreditAudit extends Model_Database {
+
+
+    //单条数据
+    public function get_one($id) {
+        return DB::select()->from('user')->where('id','=',$id)->execute()->current();
+    }
+
+    //单条数据
+    public function get_one_by_user_id($user_id=0,$credit_auth=NULL) {
+        return DB::select()->from('user')->where('user_id','=',$user_id)->and_where('credit_auth','=',($credit_auth!==NULL ? $credit_auth : Model_User::CREDIT_AUTH_STATUS_SUBMITED) )->execute()->current();
+    }
+
+
+    //构造查询条件
+    private function query_builder($query, $array=array()) {
+
+
+
+        if(isset($array['credit_auth']) && $array['credit_auth']!='') {
+            $query->where('user.credit_auth','=',$array['credit_auth']);
+        }
+        if(isset($array['name']) && $array['name']!='') {
+            $query->where('user.name','like',"%".$array['name']."%");
+        }
+
+        if(isset($array['mobile']) && $array['mobile']!="") {
+            $query->where('user.mobile','=',$array['mobile']);
+        }
+
+        if(isset($array['identity_code']) && $array['identity_code']!='') {
+            $query->where('user.identity_code','=',$array['identity_code']);
+        }
+
+        if(isset($array['id']) && $array['id']!='') {
+            $query->where('user.id','=',$array['id']);
+        }
+
+
+        //判断是列表分类  [show=all:调用所有列表,show=slef:调用自己审核的列表]
+        if(isset($array['show']) && $array['show']=='') {
+
+            $query->where('user.credit_auth','in',array(Model_User::CREDIT_AUTH_STATUS_SUBMITED,Model_User::CREDIT_AUTH_STATUS_CHECKING));
+        }
+
+        //判断是列表分类  [show=all:调用所有列表,show=slef:调用自己审核的列表]
+        if(isset($array['show']) && $array['show']=='self') {
+
+            $query->join('approval','LEFT')->on('user.id','=','approval.user_id');
+
+            $query->where('user.credit_auth','in',array(Model_User::CREDIT_AUTH_STATUS_SUBMITED,Model_User::CREDIT_AUTH_STATUS_CHECKING));
+            $query->and_where('approval.admin_id', '=', $array['admin_id']);
+            $query->and_where('approval.status', '=',Model_Approval::STATUS_AUDITING);
+        }
+        //判断是列表分类
+        if(isset($array['show']) && $array['show']=='history') {
+            $query->join('approval','LEFT')->on('user.id','=','approval.user_id');
+            $query->and_where('approval.admin_id', '>', 0);
+            $query->and_where('approval.status', '=',Model_Approval::STATUS_FINISH);
+        }else{
+
+            //新增限制     用户状态为3:禁止授信,4:,5: 时排除
+            $query->where('user.status','not in',array(Model_User::STATUS_LOANDENY,Model_User::STATUS_DENYFOREVER,Model_User::STATUS_DENYTEMP));
+
+        }
+
+        return $query;
+    }
+
+
+    //查询分页
+    public function get_list($array=array(),$perpage=20,$page=1) {
+
+        if(isset($array['show']) && ($array['show']=='history' || $array['show']=='self')){
+            //定义审核查询字段
+            $query=DB::select('user.id','user.name','user.status','user.identity_code','user.mobile','user.credit_auth','ci_step.apply_time','ci_step.audit_time','finance_profile.max_amount','finance_profile.ensure_rate',array("approval.id","approval_id"),"approval.admin_id")->from('user');
+
+        }else{
+            $query=DB::select('user.id','user.name','user.status','user.identity_code','user.mobile','user.credit_auth','ci_step.apply_time','finance_profile.max_amount','finance_profile.ensure_rate')->from('user');
+        }
+
+        $query->join('finance_profile','INNER')->on("user.id",'=','finance_profile.user_id');
+        $query->join('ci_step','INNER')->on("user.id",'=','ci_step.user_id');
+        if($page<1) {
+            $page=1;
+        }
+
+        if(count($array)>0) {
+            $query = $this->query_builder($query,$array);
+        }
+
+
+        $rs=$query->order_by('ci_step.apply_time','DESC')->offset($perpage*($page-1))->limit($perpage)->execute()->as_array();
+
+
+        return $rs;
+    }
+
+
+    //查询列表数量
+    public function get_total($array=array()) {
+
+        $query=DB::select(array(DB::expr('COUNT(*)'), 'total'))->from('user');
+        $query->join('finance_profile','LEFT')->on("user.id",'=','finance_profile.user_id');
+
+        if(count($array)>0) {
+            $query = $this->query_builder($query,$array);
+        }
+        $rs=$query->execute()->current();
+        return isset($rs['total']) ? $rs['total'] : 0 ;
+    }
+
+
+
+
+    //获取审批备注
+    public function get_infos($admin_id,$order_id){
+        $query=DB::select('description')->from('approval');
+        $query->where('order_id','=',$order_id);
+        $query->and_where('admin_id','=',$admin_id);
+        $rs=$query->execute()->current();
+        return $rs['description'];
+    }
+
+    //获取详细页详情
+    public  function get_detail($id){
+        $query=DB::select('user.id','user.name','user.status','user.credit_auth','user.identity_code','user.mobile','finance_profile.max_amount','finance_profile.ensure_rate')->from ('user');
+        $query->join('finance_profile')->on('user.id','=','finance_profile.user_id');
+        $query->where('user.id','=',$id);
+        $rs=$query->execute()->current();
+
+        //用户id赋值
+        $user_id = isset($rs['id'])?$rs['id']:0;
+        $identity_code = isset($rs['identity_code'])?$rs['identity_code']:'';
+
+        // 用户基本信息
+        $information = Model::factory('User')->get_user_essential_information($user_id);
+
+        //查询用户授信信息
+        $credit_auth = Model::factory('User')->get_user_credit_auth($user_id);
+
+        //获取用户faceidauth照片信息
+        $faceid_auth = Model::factory('User')->get_faceidauth_information($user_id,$identity_code);
+
+        $rs = array_merge($information,$credit_auth,$faceid_auth);
+        return $rs;
+    }
+
+
+    //获取还款详情
+    public function getRepayment($userId){
+        if(empty($userId)){
+            return false;
+        }
+        $rs = DB::select()->from('order')->where('user_id','=',$userId)->and_where('status','=',61)->execute()->as_array();
+        return $rs;
+    }
+
+
+    //新增关系数组 自动调用功能
+    public  function getContact($key){
+        $array =  array(
+            'parent'  => '父母',
+            'brother'  => '兄弟姐妹',
+            'spouse'  => '配偶',
+            'children'  => '子女',
+            'colleague'  => '同事',
+            'classmate'  => '同学',
+            'friend'     => '朋友',
+
+        );
+
+        return isset($array[$key])?$array[$key]:NULL;
+    }
+
+    /***
+     *  根据用户获取管理员是否手动放款审核过并调取放款审核的记录
+     * @param $user_id
+     * @return mixed
+     */
+    public  function getUserOrderListHistory($user_id){
+
+        $query=DB::select('order.id','order.order_no','order.loan_amount','order.create_time','order.status','approval.description',array('admin_user.name','admin_name'))->from ('user');
+        $query->join('order','INNER')->on('user.id','=','order.user_id');
+        $query->join('approval','INNER')->on('order.id','=','approval.order_id');
+        $query->join('admin_user','INNER')->on('approval.admin_id','=','admin_user.id');
+        $query->where('approval.type','=','advance');
+        $query->where('user.id','=',$user_id);
+        $query->where('order.id','>',0);
+        $rs=$query->order_by('order.id','desc')->execute()->as_array();
+
+        //调用2.0期 手动放款审核记录 调取审核信息 2.1期已改为表存储 {json存储有缺陷}
+        if($rs){
+            foreach ($rs as $key=>$value){
+                if($value['description']){
+                    $descriptionList =json_decode($value['description'],true);
+                    $description='';
+                    for($i=0;$i<count($descriptionList)-3;$i++){
+
+                        if(is_array($descriptionList[$i])){
+
+                            $description=$descriptionList[$i]['info']."-".$descriptionList[$i]['create_time']."<br/>".$description;
+                        }
+                    }
+                    $rs[$key]['description'] = $description;
+                }
+
+            }
+        }
+
+        return $rs;
+    }
+}

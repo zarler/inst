@@ -1,0 +1,697 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 2016/10/20
+ * Time: 上午3:08
+ *
+ * 极速贷 规则
+ *
+ * lib::factory('Credit_FastLoan')->app_id(App::$id)->credit_list(App::$_token['user_id');
+ *
+ * 关于授信列表的status
+ *  0   未提交:未提交
+ *  1   已通过:不需要再提交
+ *  2   未通过:无法再提交
+ *  3   待提交:未通过但可以重新提交
+ */
+class Lib_Credit_Inst {
+
+    const CREDIT_CODE = 'TC_FK_JSD_20171201_001';//版本编号 ,授信每次发生变化,该号必须更新
+    const ORDER_TYPE = Model_Order::TYPE_INST;
+
+    /* 通过产品授信获得授信额度 */
+//    const PASS_FINANCE_PROFILE_AMOUNT = Model_Order_Inst::CREDIT_PASS_FINANCE_PROFILE_AMOUNT;
+//    const PASS_FINANCE_PROFILE_CHARGE_RATE = Model_Order_Inst::CREDIT_PASS_FINANCE_PROFILE_CHARGE_RATE; //极速贷手续费折扣率
+
+    /* 评分配置 */
+
+    const PASS_SCORE_BAIRONG = 700;                     //旧百融黑盒评分 大于等于   2017-5-31 23:59:59旧数据有效新,新用户不在使用百融
+    const PASS_SCORE_RONG360_XIGUA = 30980000;          //旧西瓜分 小于等于
+
+    const PASS_SCORE_RONG360_XIGUA_V21 = 610;           //新西瓜分v21 大于等于
+    const PASS_SCORE_TONGDUN_CREDIT_SCORE = 589;        //同盾模型评分 大于等于
+    const PASS_SCORE_TCREDIT_CREDIT_SCORE = 400000000;          //天创银联模型决策 大于等于 自动过
+
+    //授信次序:只做顺序提示
+    protected $credit_sort = [
+        'app_authorize',
+        'app_work',
+        'app_contact',
+        'app_bankcard',
+        'app_faceid',
+        'app_mno',
+    ];
+
+
+    protected $user_id = 0;
+    protected $last_update_time = 30*86400;// 30 day
+    protected $last_repay_time = 30*86400;// 30 day
+    protected $user = [];
+    protected $app_id = '';
+    protected $model = [];
+
+    public function user_id($user_id=0){
+        $this->user_id = (int)$user_id;
+        $this->user = Model::factory('User')->get_one($this->user_id);
+        return $this;
+    }
+
+
+
+    public function app_id($app_id){
+        $this->app_id = $app_id;
+        return $this;
+    }
+
+
+
+    //逐一比对授信项目是否通过 都通过了返回TRUE 否则 FALSE
+    public function check_credit_list($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if(!$this->user){
+            return FALSE;
+        }
+
+        $ci_step = Model::factory('User')->get_ci_step(App::$_token['user_id']);
+        //运营商授权: 只要授权过了就算授信通过
+        if(isset($ci_step['mno']) && (int)$ci_step['mno'] != Model_CreditInfo_Step::COMPLETE  ){
+            return FALSE;
+        }
+
+        //紧急联系人: 必填
+        if( isset($ci_step['contact']) &&  $ci_step['contact'] != Model_CreditInfo_Step::COMPLETE ){
+            return FALSE;
+        }
+
+        //工作信息: 必填
+        if( isset($ci_step['work_info']) &&  $ci_step['work_info'] != Model_CreditInfo_Step::COMPLETE ){
+            return FALSE;
+        }
+
+        //人脸识别: 必须身份证网纹照片相似度对比通过才算授信通过
+        if(isset($ci_step['faceid']) && (int)$ci_step['faceid'] == Model_CreditInfo_Step::COMPLETE  ) {
+            if($faceid = Model::factory('User_FaceIDAuth')->get_one_by_user_id($this->user_id)){
+                if(!isset($faceid['identity_status']) || (int)$faceid['identity_status']!=Model_User_FaceIDAuth::STATUS_VERIFIED ){
+                    return FALSE;
+                }
+            }else{
+                return FALSE;
+            }
+
+        }else{
+            return FALSE;
+        }
+
+        //实名绑卡
+        $bc= Model::factory('BankCard')->get_by_user_id($this->user_id);
+        if(!$bc){
+            return FALSE;
+        }
+
+        if(strtolower($this->app_id) == 'android'){
+            if(
+                !isset($ci_step['phone_book']) || $ci_step['phone_book'] != Model_CreditInfo_Step::COMPLETE ||
+                !isset($ci_step['sms_record']) || $ci_step['sms_record'] != Model_CreditInfo_Step::COMPLETE ||
+                !isset($ci_step['call_history']) || $ci_step['call_history'] != Model_CreditInfo_Step::COMPLETE ){
+                return FALSE;
+            }
+
+        }else{
+            if(!isset($ci_step['phone_book']) || $ci_step['phone_book'] != Model_CreditInfo_Step::COMPLETE){
+                return FALSE;
+            }
+        }
+
+        return TRUE;
+
+    }
+
+
+
+    //授信列表
+    public function credit_list($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if(!$this->user){
+            return FALSE;
+        }
+
+        $credit_list = [];
+
+        $this->model['step'] = Model::factory('CreditInfo_Step');
+        $this->model['user'] = Model::factory('User');
+        $this->model['bankcard'] = Model::factory('BankCard');
+        $ci_step = $this->model['user']->get_ci_step(App::$_token['user_id']);
+        $this->model['credit_list'] = Model::factory('Credit_List');
+
+
+        //实名绑卡
+        $_bankcard=[
+            'name'=>'app_bankcard',
+            'show_title'=>'银行卡绑卡',
+            'url'=> $this->model['credit_list']->get_url('app_bankcard','start'),
+            'icon'=>'',
+            'status'=> (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title'=>'去提交'
+        ];
+        $bc= $this->model['bankcard']->get_by_user_id($this->user_id);
+        if($bc){
+            $_bankcard['show_status_title'] = '已通过';
+            $_bankcard['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_bankcard['url'] = $this->model['credit_list']->get_url('app_bankcard','success');
+        }
+
+        //移动运营商
+        $_mno = [
+            'name' => 'app_mno',
+            'show_title' =>'移动运营商认证',
+            'url' => $this->model['credit_list']->get_url('app_mno','start'),
+            'icon' => '',
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去提交'
+        ];
+        if(isset($ci_step['mno']) && $ci_step['mno']==2 ){
+            $_mno['show_status_title'] = '已通过';
+            $_mno['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_mno['url'] = $this->model['credit_list']->get_url('app_mno','success');
+        }
+
+        //人脸识别
+        $_faceid = [
+            'name' => 'app_faceid',
+            'show_title' =>'人脸识别',
+            'url' => $this->model['credit_list']->get_url('app_faceid','start'),
+            'icon' => '',
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title'=>'去提交'
+        ];
+        if(isset($ci_step['faceid']) && $ci_step['faceid']==2 ){
+            if($faceid = Model::factory('User_FaceIDAuth')->get_one_by_user_id($this->user_id)){
+                if(isset($faceid['identity_status']) && (int)$faceid['identity_status']==Model_User_FaceIDAuth::STATUS_VERIFIED ){
+                    $_faceid['show_status_title'] = '已通过';
+                    $_faceid['status'] = (string)Model_Credit_List::STATUS_PASS;
+                    $_faceid['url'] = $this->model['credit_list']->get_url('app_faceid','success');
+                }else{
+                    $_faceid['show_status_title'] = '未通过';
+                    $_faceid['status'] = (string)Model_Credit_List::STATUS_UNPASS;
+                    $_faceid['url'] = $this->model['credit_list']->get_url('app_faceid','failed');
+                }
+            }else{
+                $_faceid['show_status_title'] = '未通过';
+                $_faceid['status'] = (string)Model_Credit_List::STATUS_UNPASS;
+                $_faceid['url'] = $this->model['credit_list']->get_url('app_faceid','failed');
+            }
+        }
+
+        //紧急联系人
+        $_contact=[
+            'name'=>'app_contact',
+            'show_title'=>'联系人信息',
+            'url'=> $this->model['credit_list']->get_url('app_contact','start'),
+            'icon'=>'',
+            'status'=> (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title'=>'去提交'
+        ];
+        if( isset($ci_step['contact']) &&  $ci_step['contact']==Model_CreditInfo_Step::COMPLETE ){
+            $_contact['show_status_title'] = '已通过';
+            $_contact['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_contact['url'] = $this->model['credit_list']->get_url('app_contact','success');
+        }
+
+        //工作信息
+        $_work=[
+            'name'=>'app_work',
+            'show_title'=>'工作信息',
+            'url'=> $this->model['credit_list']->get_url('app_work','start'),
+            'icon'=>'',
+            'status'=> (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title'=>'去提交'
+        ];
+        if( isset($ci_step['work_info']) &&  $ci_step['work_info']==Model_CreditInfo_Step::COMPLETE ){
+            $_work['show_status_title'] = '已通过';
+            $_work['status'] = (string)Model_Credit_List::STATUS_PASS;
+            $_work['url'] = $this->model['credit_list']->get_url('app_work','success');
+        }
+
+        //应用授权
+        $_app_authorize = [
+            'name' => 'app_authorize',
+            'show_title' => '应用授权',
+            'url' => $this->model['credit_list']->get_url('app_authorize','start'),
+            'icon' => '',
+            'status' => (string)Model_Credit_List::STATUS_INIT,
+            'show_status_title' => '去授权'
+        ];
+        if(strtolower($this->app_id) == 'android'){
+            if(
+                (isset($ci_step['phone_book']) && $ci_step['phone_book'] == Model_CreditInfo_Step::COMPLETE) &&
+                (isset($ci_step['sms_record']) && $ci_step['sms_record'] == Model_CreditInfo_Step::COMPLETE) &&
+                (isset($ci_step['call_history']) && $ci_step['call_history'] == Model_CreditInfo_Step::COMPLETE) ){
+                $_app_authorize['status'] = (string)Model_Credit_List::STATUS_PASS;
+                $_app_authorize['url'] = $this->model['credit_list']->get_url('app_authorize','success');
+                $_app_authorize['show_status_title'] = '已通过';
+            }
+
+            return [
+                $_app_authorize,
+                $_work,
+                $_contact,
+                $_bankcard,
+                $_faceid,
+                $_mno,
+            ];
+
+
+        }else{
+            if(isset($ci_step['phone_book']) && $ci_step['phone_book'] == Model_CreditInfo_Step::COMPLETE){
+                $_app_authorize['status'] = (string)Model_Credit_List::STATUS_PASS;
+                $_app_authorize['url'] = $this->model['credit_list']->get_url('app_authorize','success');
+                $_app_authorize['show_status_title'] = '已通过';
+            }
+            return [
+                $_app_authorize,
+                $_work,
+                $_contact,
+                $_bankcard,
+                $_faceid,
+                $_mno,
+            ];
+
+        }
+
+
+    }
+
+
+
+
+
+    //通过记录:内部调用
+    private function add_pass($user_id=0,$order_type=self::ORDER_TYPE,$pass_type=Model_Credit_PassRecord::TYPE_CREDIT_PASS,$credit_code=self::CREDIT_CODE){
+        if( $credit_passed = Model::factory('Credit_PassRecord')->get_one_by_array(['user_id'=>$user_id, 'order_type'=>$order_type, 'pass_type'=>$pass_type, 'credit_code'=>$credit_code]) ){
+            return FALSE;
+        }else{
+            return Model::factory('Credit_PassRecord')->create([
+                'user_id' => $user_id,
+                'order_type' => $order_type,
+                'pass_type' => $pass_type,
+                'credit_code' => $credit_code,
+            ]);
+        }
+    }
+
+    //检查是否有通过记录:内部调用
+    private function has_pass($user_id=0,$order_type,$pass_type,$credit_code=NULL){
+        $array = [
+            'user_id' => $user_id,
+            'order_type' => $order_type,
+            'pass_type' => $pass_type
+        ];
+        if($credit_code){
+            $array['credit_code'] = $credit_code;
+        }
+        if ( $credit_passed = Model::factory('Credit_PassRecord')->get_one_by_array($array)) {
+            return TRUE;
+        }
+        return FALSE;
+    }
+
+
+
+    //授信通过
+    public function credit_passed($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if(!$this->user){
+            return FALSE;
+        }
+        return $this->add_pass($this->user_id,self::ORDER_TYPE,Model_Credit_PassRecord::TYPE_CREDIT_PASS,self::CREDIT_CODE);
+    }
+
+
+    //授信反欺诈通过
+    public function event_credit_af_passed($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if(!$this->user){
+            return FALSE;
+        }
+        return $this->add_pass($this->user_id,self::ORDER_TYPE,Model_Credit_PassRecord::TYPE_FAST_LOAN_EVENT_CREDIT_AF_PASS,self::CREDIT_CODE);
+    }
+
+    //评分通过
+    public function score_passed($user_id=0){
+        return $this->event_loan_score_passed($user_id);
+    }
+
+    //评分通过
+    public function event_loan_score_passed($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if(!$this->user){
+            return FALSE;
+        }
+        return $this->add_pass($this->user_id,self::ORDER_TYPE,Model_Credit_PassRecord::TYPE_SCORE_PASS,self::CREDIT_CODE);
+    }
+
+
+
+
+
+
+    //检查授信是否已通过
+    public function has_credit_pass($user_id=0) {
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if($this->user){
+            return $this->has_pass($this->user_id,self::ORDER_TYPE,Model_Credit_PassRecord::TYPE_CREDIT_PASS);
+        }
+        return FALSE;
+    }
+
+
+    //检查授信反欺诈是否已通过
+    public function has_event_credit_af_pass($user_id=0) {
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if($this->user){
+            return $this->has_pass($this->user_id,self::ORDER_TYPE,Model_Credit_PassRecord::TYPE_FAST_LOAN_EVENT_CREDIT_AF_PASS);
+        }
+        return FALSE;
+    }
+
+
+    //检查授信是否已通过
+    public function has_score_pass($user_id=0) {
+        return $this->has_event_loan_score_pass($user_id);
+    }
+
+    //检查授信是否已通过
+    public function has_event_loan_score_pass($user_id=0) {
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if($this->user){
+            return $this->has_pass($this->user_id,self::ORDER_TYPE,Model_Credit_PassRecord::TYPE_SCORE_PASS);
+        }
+        return FALSE;
+    }
+
+
+
+
+
+
+    /**
+     * 授信反欺诈
+     * 异步执行,命中拒绝,未命中或查询失败不拒绝。
+     */
+    public function event_credit_af($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if(!$this->user){
+            return FALSE;
+        }
+
+        //快金:电话本命中M2 (IOS/ANDROID) 命中拒绝 如果没有电话本或者系统故障可能是初始化INIT状态这种用户暂时拒绝
+        $result=Lib::factory('TCCredit_MobileAudit')->user_id($this->user_id)->module('phone_book_m2')->review(Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            return FALSE;
+        }
+        if(in_array($result,[Model_AntiFraud::INIT])){
+            Model::factory('User')->update($this->user_id,['status'=>Model_User::STATUS_DENYTEMP]);
+            return FALSE;
+        }
+
+        //快金:通话记录命中M2 (ANDROID) 命中拒绝
+        $result=Lib::factory('TCCredit_MobileAudit')->user_id($this->user_id)->module('call_history_m2')->review(Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
+
+    /**
+     * 借款反欺诈
+     * 同步执行,命中拒绝,失败拒绝。
+     */
+    public function event_loan_af($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if(!$this->user){
+            return FALSE;
+        }
+
+        //快金:自有黑名单
+        if(Model::factory('BlackList')->check(['mobile'=>$this->user['mobile'],'identity_code'=>$this->user['identity_code']])===TRUE){
+            if((int)$this->user['status']!==(int)Model_User::STATUS_DENYFOREVER){
+                if(Model::factory('User')->update($this->user_id,['status'=>Model_User::STATUS_DENYFOREVER])){
+                    Model::factory('AntiFraud_Log')->create($this->user_id,Model_AntiFraud_Log::TYPE_TIMECASH_BLACKLIST,Model_AntiFraud_Log::RESULT_UNPASS,$this->user['status'],Model_User::STATUS_DENYFOREVER,'命中快金黑名单');
+                }
+            }
+            //echo "[0]";
+            return FALSE;
+        }
+
+        //快金:联系人不在电话本中
+        $result=Lib::factory('TCCredit_MobileAudit')->user_id($this->user_id)->module('contact_not_in_phone_book')->review(NULL);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            //echo "[1]";
+            return FALSE;
+        }
+
+        //百融:特殊名单 借款事件带有紧急联系人 命中本人拒绝 命中联系人暂时拒绝
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','SpecialList_c_contact')->review($this->last_update_time,$this->last_repay_time,[Model_User::STATUS_DENYFOREVER,Model_User::STATUS_DENYTEMP]);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            //echo "[2]";
+            return FALSE;
+        }
+
+        /* 借款事件中增加手机实名制反欺诈验证 2016-11-25 by majin */
+        //百融:手机实名制
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','TelCheck')->review(0,0,Model_User::STATUS_DENYFOREVER,FALSE);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            //未通过手机实名认证的直接拒绝,不添加黑名单
+            return FALSE;
+        }
+
+        //百融:法院执行名单
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','Execution')->review($this->last_update_time,$this->last_repay_time,Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory("BlackList")->add_with_check([
+                'user_id'   => $this->user_id,
+                'source'    =>Model_BlackList::SOURCE_BAIRONG,
+                'why'   =>'百融反欺诈法院执行名单命中',
+                'name'  =>  isset($this->user['name']) ? $this->user['name'] : '',
+                'identity_code' => isset($this->user['identity_code'])? $this->user['identity_code'] :'',
+                'mobile'    => isset($this->user['mobile']) ?  $this->user['mobile'] : '',
+                'create_time'   => time(),
+            ]);
+            return FALSE;
+        }
+        if(in_array($result,[Model_AntiFraud::INIT])){
+            return FALSE;
+        }
+
+
+        //同盾:特殊名单 2017-11-30 调入
+        /*$result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('TongDun','SpecialList')->last_update_review(strtotime(date('Y-m-d').' -30 days'),Model_User::STATUS_DENYFOREVER);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory("BlackList")->add_with_check([
+                'user_id'   => $this->user_id,
+                'source'    =>Model_BlackList::SOURCE_TONGDUN,
+                'why'   =>'同盾反欺诈特殊名单命中',
+                'name'  =>  isset($this->user['name']) ? $this->user['name'] : '',
+                'identity_code' => isset($this->user['identity_code'])? $this->user['identity_code'] :'',
+                'mobile'    => isset($this->user['mobile']) ?  $this->user['mobile'] : '',
+                'create_time'   => time(),
+            ]);
+            if(in_array($result,[Model_AntiFraud::UNPASS])){
+                Model::factory('TCRisk_UserRecord')->exists_not_create([
+                    'user_id' => $this->user_id,
+                    'credit_code' => self::CREDIT_CODE,
+                    'summary' => 'user.status=4',
+                ]);
+            }
+            return FALSE;
+        }
+
+        //同盾:多次申请 2017-11-30 调入
+        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('TongDun','ApplyLoan')->last_update_review(strtotime(date('Y-m-d').' -30 days'),Model_User::STATUS_DENYTEMP);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory('TCRisk_UserRecord')->exists_not_create([
+                'user_id' => $this->user_id,
+                'credit_code' => self::CREDIT_CODE,
+                'summary' => 'user.status=5',
+            ]);
+            return FALSE;
+        }*/
+
+        //同盾:设备反欺诈 2017-11-30 调入
+/*        $result=Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('TongDun','Equipment')->last_update_review(strtotime(date('Y-m-d').' -30 days'),Model_User::STATUS_DENYTEMP);
+        if(in_array($result,[Model_AntiFraud::UNPASS])){
+            Model::factory('TCRisk_UserRecord')->exists_not_create([
+                'user_id' => $this->user_id,
+                'credit_code' => 'TC_FK_JSD_20171130_001',
+            ]);
+            return FALSE;
+        }*/
+
+
+
+
+        return TRUE;
+    }
+
+
+
+    /**
+     *  借款评分决策
+     */
+    public function event_loan_score($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        //挑战者模式 : 如果用户绑定挑战者分配方式,只使用挑战渠道进行决策。
+        if($df = Model::factory('Defier_Relation')->get_one_by_user_id($this->user_id)){
+            switch($df['provider']){
+                case Model_Defier_Relation::PROVIDER_RONG360:
+                    //融360 西瓜分v21
+                    $rong360_score_v21=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScore_v21')->get_result();
+                    if((int)$rong360_score_v21>0 ){
+                        if( (int)$rong360_score_v21 >= self::PASS_SCORE_RONG360_XIGUA_V21 ) {
+                            return TRUE;
+                        }
+                    }
+                    return FALSE;
+                    break;
+                case Model_Defier_Relation::PROVIDER_TCREDIT:
+                    //天创决策
+                    $tcredit_score = Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('TCredit','credit_score')->get_result();
+                    if($tcredit_score>0){
+                        if($tcredit_score >= self::PASS_SCORE_TCREDIT_CREDIT_SCORE) {
+                            return TRUE;
+                        }
+                    }
+                    return FALSE;
+                    break;
+                case Model_Defier_Relation::PROVIDER_TONGDUN:
+                    $tongdun_score = Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('TongDun','credit_score')->get_result();
+                    if((int)$tongdun_score>0){
+                        if((int)$tongdun_score >= self::PASS_SCORE_TONGDUN_CREDIT_SCORE) {
+                            return TRUE;
+                        }
+                    }
+
+                    return FALSE;
+                    break;
+
+                default:
+                    return FALSE;
+
+            }
+
+        }
+
+        //没有挑战者绑定的老用户走下面
+
+        $rs = Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('BaiRong','scorepettycashv1')->get_record();
+        if($rs && isset($rs['result']) && $rs['result']>0){
+            $bairong_score = $rs['result'];
+            if((int)$bairong_score >= self::PASS_SCORE_BAIRONG){
+                return TRUE;
+            }else{
+                return FALSE;
+            }
+        }
+
+        //没有百融分的 先看西瓜历史分
+        $rong360_score_old=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScore')->get_result();
+        if((int)$rong360_score_old>0 ){
+            if( (int)$rong360_score_old <= self::PASS_SCORE_RONG360_XIGUA ){
+                return TRUE;
+            }else{
+                return FALSE;
+            }
+        }
+
+        //没有老西瓜分 读取新西瓜分v21
+        $rong360_score_v21=Lib::factory('TCCredit_Score')->user_id($this->user_id)->module('Rong360_XiGua','TianJiScore_v21')->get_result();
+        if((int)$rong360_score_v21>0 ){
+            if( (int)$rong360_score_v21 >= self::PASS_SCORE_RONG360_XIGUA_V21 ){
+                return TRUE;
+            }else{
+                return FALSE;
+            }
+        }
+
+
+
+        return FALSE;
+
+    }
+
+
+
+
+    /**
+     * 通过授信后分配担保比例
+     */
+    public function pass_update_finance_profile($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if($finance_profile = Model::factory('User')->get_finance_profile($this->user_id)){
+            if(isset($finance_profile['fastloan_amount']) && $finance_profile['fastloan_amount']<=0  || !isset($finance_profile['fastloan_amount']) ){
+                Model::factory('Finance_Profile')->update($this->user_id,[
+                    'fastloan_amount'=>self::PASS_FINANCE_PROFILE_AMOUNT,
+                    'fastloan_charge_rate'=>self::PASS_FINANCE_PROFILE_CHARGE_RATE,
+                ]);
+            }
+        }
+
+    }
+
+
+    /** 记录每日申请记录
+     * @param int $user_id
+     * @return bool
+     */
+    public function apply_record_date($user_id=0){
+        if($user_id>=0){
+            $this->user_id($user_id);
+        }
+        if(Model::factory('Credit_ApplyRecord')->get_one_by_array([
+            'user_id' => $this->user_id,
+            'apply_date'=>date('Y-m-d'),
+            'order_type'=>self::ORDER_TYPE
+        ])){
+            return TRUE;
+        }else{
+            return Model::factory('Credit_ApplyRecord')->create([
+                'user_id' => $this->user_id,
+                'order_type' => self::ORDER_TYPE,
+                'apply_date' => date('Y-m-d'),
+                'apply_type' => Model_Credit_ApplyRecord::TYPE_APPLY_LOAN,
+            ]);
+        }
+    }
+
+
+
+
+}

@@ -1,0 +1,21 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: yangge
+ * Date: 2018/1/9
+ * Time: 下午5:57
+ */
+class Model_Emay extends Model
+{
+
+    public function create($token)
+    {
+        return DB::insert("emay_token",array('token','date'))->values(array($token,date("Y-m-d",time())))->execute();
+    }
+
+    public function getOne()
+    {
+        return DB::select("*")->from('emay_token')->where('date','=',date("Y-m-d",time()))->execute()->current();
+    }
+}

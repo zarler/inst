@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"> 
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>中国省市区地址三级联动jQuery插件</title>
+	<link href="bootstrap.min.css" rel="stylesheet">
+	<!--[if IE]>
+		<script src="http://libs.useso.com/js/html5shiv/3.7/html5shiv.min.js"></script>
+	<![endif]-->
+</head>
+<body>
+	<!--[if lt IE 8]>
+	    <p class="browserupgrade">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+	  <![endif]-->
+	<div class="jq22-container">
+		
+		<div class="container">
+        <h4>中国省市区地址三级联动jQuery插件 <span>A simple jQuery plugin for picking provinces, cities and districts of China</span></h4>
+			<h3>Basic</h3>
+
+    <h5>HTML:</h5>
+    <pre class="prettyprint">&lt;div data-toggle="distpicker"&gt;
+  &lt;select&gt;&lt;/select&gt;
+  &lt;select&gt;&lt;/select&gt;
+  &lt;select&gt;&lt;/select&gt;
+&lt;/div&gt;</pre>
+
+    <h5>Demo:</h5>
+    <form class="form-inline">
+      <div data-toggle="distpicker">
+        <div class="form-group">
+          <label class="sr-only" for="province1">Province</label>
+          <select class="form-control" id="province1"><option value="" data-code="">—— 省 ——</option><option value="北京市" data-code="110000" selected="">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="city1">City</label>
+          <select class="form-control" id="city1"><option value="" data-code="">—— 市 ——</option><option value="北京市市辖区" data-code="110100" selected="">北京市市辖区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="district1">District</label>
+          <select class="form-control" id="district1"><option value="" data-code="">—— 区 ——</option><option value="东城区" data-code="110101" selected="">东城区</option><option value="西城区" data-code="110102">西城区</option><option value="朝阳区" data-code="110105">朝阳区</option><option value="丰台区" data-code="110106">丰台区</option><option value="石景山区" data-code="110107">石景山区</option><option value="海淀区" data-code="110108">海淀区</option><option value="门头沟区" data-code="110109">门头沟区</option><option value="房山区" data-code="110111">房山区</option><option value="通州区" data-code="110112">通州区</option><option value="顺义区" data-code="110113">顺义区</option><option value="昌平区" data-code="110114">昌平区</option><option value="大兴区" data-code="110115">大兴区</option><option value="怀柔区" data-code="110116">怀柔区</option><option value="平谷区" data-code="110117">平谷区</option><option value="密云区" data-code="110118">密云区</option><option value="延庆区" data-code="110119">延庆区</option></select>
+        </div>
+      </div>
+    </form>
+
+    <h3>Custom placeholders</h3>
+    <h5>HTML:</h5>
+    <pre class="prettyprint">&lt;div data-toggle="distpicker"&gt;
+  &lt;select data-province="---- 选择省 ----"&gt;&lt;/select&gt;
+  &lt;select data-city="---- 选择市 ----"&gt;&lt;/select&gt;
+  &lt;select data-district="---- 选择区 ----"&gt;&lt;/select&gt;
+&lt;/div&gt;</pre>
+
+    <h5>Demo:</h5>
+    <form class="form-inline">
+      <div data-toggle="distpicker">
+        <div class="form-group">
+          <label class="sr-only" for="province2">Province</label>
+          <select class="form-control" id="province2" data-province="---- 选择省 ----"><option value="" data-code="">---- 选择省 ----</option><option value="北京市" data-code="110000" selected="">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="city2">City</label>
+          <select class="form-control" id="city2" data-city="---- 选择市 ----"><option value="" data-code="">---- 选择市 ----</option><option value="北京市市辖区" data-code="110100" selected="">北京市市辖区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="district2">District</label>
+          <select class="form-control" id="district2" data-district="---- 选择区 ----"><option value="" data-code="">---- 选择区 ----</option><option value="东城区" data-code="110101" selected="">东城区</option><option value="西城区" data-code="110102">西城区</option><option value="朝阳区" data-code="110105">朝阳区</option><option value="丰台区" data-code="110106">丰台区</option><option value="石景山区" data-code="110107">石景山区</option><option value="海淀区" data-code="110108">海淀区</option><option value="门头沟区" data-code="110109">门头沟区</option><option value="房山区" data-code="110111">房山区</option><option value="通州区" data-code="110112">通州区</option><option value="顺义区" data-code="110113">顺义区</option><option value="昌平区" data-code="110114">昌平区</option><option value="大兴区" data-code="110115">大兴区</option><option value="怀柔区" data-code="110116">怀柔区</option><option value="平谷区" data-code="110117">平谷区</option><option value="密云区" data-code="110118">密云区</option><option value="延庆区" data-code="110119">延庆区</option></select>
+        </div>
+      </div>
+    </form>
+
+    <h3>Custom districts</h3>
+    <h5>HTML:</h5>
+    <pre class="prettyprint">&lt;div data-toggle="distpicker"&gt;
+  &lt;select data-province="浙江省"&gt;&lt;/select&gt;
+  &lt;select data-city="杭州市"&gt;&lt;/select&gt;
+  &lt;select data-district="西湖区"&gt;&lt;/select&gt;
+&lt;/div&gt;</pre>
+
+    <h5>Demo:</h5>
+    <form class="form-inline">
+      <div data-toggle="distpicker">
+        <div class="form-group">
+          <label class="sr-only" for="province3">Province</label>
+          <select class="form-control" id="province3" data-province="浙江省"><option value="" data-code="">—— 省 ——</option><option value="北京市" data-code="110000">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000" selected="">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="city3">City</label>
+          <select class="form-control" id="city3" data-city="杭州市"><option value="" data-code="">—— 市 ——</option><option value="杭州市" data-code="330100" selected="">杭州市</option><option value="宁波市" data-code="330200">宁波市</option><option value="温州市" data-code="330300">温州市</option><option value="嘉兴市" data-code="330400">嘉兴市</option><option value="湖州市" data-code="330500">湖州市</option><option value="绍兴市" data-code="330600">绍兴市</option><option value="金华市" data-code="330700">金华市</option><option value="衢州市" data-code="330800">衢州市</option><option value="舟山市" data-code="330900">舟山市</option><option value="台州市" data-code="331000">台州市</option><option value="丽水市" data-code="331100">丽水市</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="district3">District</label>
+          <select class="form-control" id="district3" data-district="西湖区"><option value="" data-code="">—— 区 ——</option><option value="上城区" data-code="330102">上城区</option><option value="下城区" data-code="330103">下城区</option><option value="江干区" data-code="330104">江干区</option><option value="拱墅区" data-code="330105">拱墅区</option><option value="西湖区" data-code="330106" selected="">西湖区</option><option value="滨江区" data-code="330108">滨江区</option><option value="萧山区" data-code="330109">萧山区</option><option value="余杭区" data-code="330110">余杭区</option><option value="富阳区" data-code="330111">富阳区</option><option value="桐庐县" data-code="330122">桐庐县</option><option value="淳安县" data-code="330127">淳安县</option><option value="建德市" data-code="330182">建德市</option><option value="临安市" data-code="330185">临安市</option></select>
+        </div>
+      </div>
+    </form>
+    <br>
+    <p class="alert alert-warning"><i class="glyphicon glyphicon-exclamation-sign"></i> The districts must be existed in the <strong class="text-primary">distpicker.data.js</strong> file!</p>
+
+    <h2 class="page-header">Initialize with <code>$.fn.distpicker</code> method</h2>
+
+    <h3>Basic</h3>
+
+    <h5>HTML:</h5>
+    <pre class="prettyprint">&lt;div id="distpicker1"&gt;
+  &lt;select&gt;&lt;/select&gt;
+  &lt;select&gt;&lt;/select&gt;
+  &lt;select&gt;&lt;/select&gt;
+&lt;/div&gt;</pre>
+
+    <h5>JavaScript:</h5>
+    <pre class="prettyprint">$("#distpicker1").distpicker();</pre>
+
+    <h5>Demo:</h5>
+    <form class="form-inline">
+      <div id="distpicker1">
+        <div class="form-group">
+          <label class="sr-only" for="province4">Province</label>
+          <select class="form-control" id="province4"><option value="" data-code="">—— 省 ——</option><option value="北京市" data-code="110000" selected="">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="city4">City</label>
+          <select class="form-control" id="city4"><option value="" data-code="">—— 市 ——</option><option value="北京市市辖区" data-code="110100" selected="">北京市市辖区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="district4">District</label>
+          <select class="form-control" id="district4"><option value="" data-code="">—— 区 ——</option><option value="东城区" data-code="110101" selected="">东城区</option><option value="西城区" data-code="110102">西城区</option><option value="朝阳区" data-code="110105">朝阳区</option><option value="丰台区" data-code="110106">丰台区</option><option value="石景山区" data-code="110107">石景山区</option><option value="海淀区" data-code="110108">海淀区</option><option value="门头沟区" data-code="110109">门头沟区</option><option value="房山区" data-code="110111">房山区</option><option value="通州区" data-code="110112">通州区</option><option value="顺义区" data-code="110113">顺义区</option><option value="昌平区" data-code="110114">昌平区</option><option value="大兴区" data-code="110115">大兴区</option><option value="怀柔区" data-code="110116">怀柔区</option><option value="平谷区" data-code="110117">平谷区</option><option value="密云区" data-code="110118">密云区</option><option value="延庆区" data-code="110119">延庆区</option></select>
+        </div>
+      </div>
+    </form>
+
+    <h3>Custom placeholders</h3>
+
+    <h5>HTML:</h5>
+    <pre class="prettyprint">&lt;div id="distpicker2"&gt;
+  &lt;select&gt;&lt;/select&gt;
+  &lt;select&gt;&lt;/select&gt;
+  &lt;select&gt;&lt;/select&gt;
+&lt;/div&gt;</pre>
+
+    <h5>JavaScript:</h5>
+    <pre class="prettyprint">$("#distpicker2").distpicker({
+  province: "---- 所在省 ----",
+  city: "---- 所在市 ----",
+  district: "---- 所在区 ----"
+});</pre>
+
+    <h5>Demo:</h5>
+    <form class="form-inline">
+      <div id="distpicker2">
+        <div class="form-group">
+          <label class="sr-only" for="province5">Province</label>
+          <select class="form-control" id="province5"><option value="" data-code="">---- 所在省 ----</option><option value="北京市" data-code="110000" selected="">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="city5">City</label>
+          <select class="form-control" id="city5"><option value="" data-code="">---- 所在市 ----</option><option value="北京市市辖区" data-code="110100" selected="">北京市市辖区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="district5">District</label>
+          <select class="form-control" id="district5"><option value="" data-code="">---- 所在区 ----</option><option value="东城区" data-code="110101" selected="">东城区</option><option value="西城区" data-code="110102">西城区</option><option value="朝阳区" data-code="110105">朝阳区</option><option value="丰台区" data-code="110106">丰台区</option><option value="石景山区" data-code="110107">石景山区</option><option value="海淀区" data-code="110108">海淀区</option><option value="门头沟区" data-code="110109">门头沟区</option><option value="房山区" data-code="110111">房山区</option><option value="通州区" data-code="110112">通州区</option><option value="顺义区" data-code="110113">顺义区</option><option value="昌平区" data-code="110114">昌平区</option><option value="大兴区" data-code="110115">大兴区</option><option value="怀柔区" data-code="110116">怀柔区</option><option value="平谷区" data-code="110117">平谷区</option><option value="密云区" data-code="110118">密云区</option><option value="延庆区" data-code="110119">延庆区</option></select>
+        </div>
+      </div>
+    </form>
+
+    <h3>Custom districts</h3>
+
+    <h5>HTML:</h5>
+    <pre class="prettyprint">&lt;div id="distpicker3"&gt;
+  &lt;select&gt;&lt;/select&gt;
+  &lt;select&gt;&lt;/select&gt;
+  &lt;select&gt;&lt;/select&gt;
+&lt;/div&gt;</pre>
+
+    <h5>JavaScript:</h5>
+    <pre class="prettyprint">$("#distpicker3").distpicker({
+  province: "浙江省",
+  city: "杭州市",
+  district: "西湖区"
+});</pre>
+
+    <h5>Demo:</h5>
+    <form class="form-inline">
+      <div id="distpicker3">
+        <div class="form-group">
+          <label class="sr-only" for="province6">Province</label>
+          <select class="form-control" id="province6"><option value="" data-code="">—— 省 ——</option><option value="北京市" data-code="110000">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000" selected="">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="city6">City</label>
+          <select class="form-control" id="city6"><option value="" data-code="">—— 市 ——</option><option value="杭州市" data-code="330100" selected="">杭州市</option><option value="宁波市" data-code="330200">宁波市</option><option value="温州市" data-code="330300">温州市</option><option value="嘉兴市" data-code="330400">嘉兴市</option><option value="湖州市" data-code="330500">湖州市</option><option value="绍兴市" data-code="330600">绍兴市</option><option value="金华市" data-code="330700">金华市</option><option value="衢州市" data-code="330800">衢州市</option><option value="舟山市" data-code="330900">舟山市</option><option value="台州市" data-code="331000">台州市</option><option value="丽水市" data-code="331100">丽水市</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="district6">District</label>
+          <select class="form-control" id="district6"><option value="" data-code="">—— 区 ——</option><option value="上城区" data-code="330102">上城区</option><option value="下城区" data-code="330103">下城区</option><option value="江干区" data-code="330104">江干区</option><option value="拱墅区" data-code="330105">拱墅区</option><option value="西湖区" data-code="330106" selected="">西湖区</option><option value="滨江区" data-code="330108">滨江区</option><option value="萧山区" data-code="330109">萧山区</option><option value="余杭区" data-code="330110">余杭区</option><option value="富阳区" data-code="330111">富阳区</option><option value="桐庐县" data-code="330122">桐庐县</option><option value="淳安县" data-code="330127">淳安县</option><option value="建德市" data-code="330182">建德市</option><option value="临安市" data-code="330185">临安市</option></select>
+        </div>
+      </div>
+    </form>
+    <br>
+    <p class="alert alert-warning"><i class="glyphicon glyphicon-exclamation-sign"></i> The districts must be existed in the <strong class="text-primary">distpicker.data.js</strong> file!</p>
+
+    <h2 class="page-header">Methods</h2>
+    <div class="docs-methods">
+      <form class="form-inline">
+        <div id="distpicker">
+          <div class="form-group">
+            <label class="sr-only" for="province">Province</label>
+            <select class="form-control" id="province"><option value="" data-code="">—— 省 ——</option><option value="北京市" data-code="110000">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000" selected="">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="city">City</label>
+            <select class="form-control" id="city"><option value="" data-code="">—— 市 ——</option><option value="福州市" data-code="350100">福州市</option><option value="厦门市" data-code="350200" selected="">厦门市</option><option value="莆田市" data-code="350300">莆田市</option><option value="三明市" data-code="350400">三明市</option><option value="泉州市" data-code="350500">泉州市</option><option value="漳州市" data-code="350600">漳州市</option><option value="南平市" data-code="350700">南平市</option><option value="龙岩市" data-code="350800">龙岩市</option><option value="宁德市" data-code="350900">宁德市</option></select>
+          </div>
+          <div class="form-group">
+            <label class="sr-only" for="district">District</label>
+            <select class="form-control" id="district"><option value="" data-code="">—— 区 ——</option><option value="思明区" data-code="350203" selected="">思明区</option><option value="海沧区" data-code="350205">海沧区</option><option value="湖里区" data-code="350206">湖里区</option><option value="集美区" data-code="350211">集美区</option><option value="同安区" data-code="350212">同安区</option><option value="翔安区" data-code="350213">翔安区</option></select>
+          </div>
+          <div class="form-group">
+            <button class="btn btn-primary" id="reset" type="button">Reset</button>
+            <button class="btn btn-warning" id="reset-deep" type="button">Reset (deep)</button>
+            <button class="btn btn-danger" id="destroy" type="button">Destroy</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <h2 class="page-header">More examples</h2>
+
+    <h3 class="page-header">Only province and city</h3>
+
+    <h5>HTML:</h5>
+    <pre class="prettyprint">&lt;div data-toggle="distpicker"&gt;
+  &lt;select&gt;&lt;/select&gt;
+  &lt;select&gt;&lt;/select&gt;
+&lt;/div&gt;</pre>
+
+    <h5>Demo:</h5>
+    <form class="form-inline">
+      <div data-toggle="distpicker">
+        <div class="form-group">
+          <label class="sr-only" for="province7">Province</label>
+          <select class="form-control" id="province7"><option value="" data-code="">—— 省 ——</option><option value="北京市" data-code="110000" selected="">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="city7">City</label>
+          <select class="form-control" id="city7"><option value="" data-code="">—— 市 ——</option><option value="北京市市辖区" data-code="110100" selected="">北京市市辖区</option></select>
+        </div>
+      </div>
+    </form>
+
+    <h3 class="page-header">Only province</h3>
+
+    <h5>HTML:</h5>
+    <pre class="prettyprint">&lt;div data-toggle="distpicker"&gt;
+  &lt;select&gt;&lt;/select&gt;
+&lt;/div&gt;</pre>
+
+    <h5>Demo:</h5>
+    <form class="form-inline">
+      <div data-toggle="distpicker">
+        <div class="form-group">
+          <label class="sr-only" for="province8">Province</label>
+          <select class="form-control" id="province8"><option value="" data-code="">—— 省 ——</option><option value="北京市" data-code="110000" selected="">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+        </div>
+      </div>
+    </form>
+
+    <h3 class="page-header">Without placeholders</h3>
+
+    <h5>JavaScript:</h5>
+    <pre class="prettyprint">$("#distpicker4").distpicker({
+  placeholder: false
+});</pre>
+
+    <h5>Demo:</h5>
+    <form class="form-inline">
+      <div id="distpicker4">
+        <div class="form-group">
+          <label class="sr-only" for="province9">Province</label>
+          <select class="form-control" id="province9"><option value="北京市" data-code="110000" selected="">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="city9">City</label>
+          <select class="form-control" id="city9"><option value="北京市市辖区" data-code="110100" selected="">北京市市辖区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="district9">District</label>
+          <select class="form-control" id="district9"><option value="东城区" data-code="110101" selected="">东城区</option><option value="西城区" data-code="110102">西城区</option><option value="朝阳区" data-code="110105">朝阳区</option><option value="丰台区" data-code="110106">丰台区</option><option value="石景山区" data-code="110107">石景山区</option><option value="海淀区" data-code="110108">海淀区</option><option value="门头沟区" data-code="110109">门头沟区</option><option value="房山区" data-code="110111">房山区</option><option value="通州区" data-code="110112">通州区</option><option value="顺义区" data-code="110113">顺义区</option><option value="昌平区" data-code="110114">昌平区</option><option value="大兴区" data-code="110115">大兴区</option><option value="怀柔区" data-code="110116">怀柔区</option><option value="平谷区" data-code="110117">平谷区</option><option value="密云区" data-code="110118">密云区</option><option value="延庆区" data-code="110119">延庆区</option></select>
+        </div>
+      </div>
+    </form>
+
+    <h3 class="page-header">Without automatic selection</h3>
+
+    <h5>JavaScript:</h5>
+    <pre class="prettyprint">$("#distpicker5").distpicker({
+  autoSelect: false
+});</pre>
+
+    <h5>Demo:</h5>
+    <form class="form-inline">
+      <div id="distpicker5">
+        <div class="form-group">
+          <label class="sr-only" for="province10">Province</label>
+          <select class="form-control" id="province10"><option value="" data-code="">—— 省 ——</option><option value="北京市" data-code="110000">北京市</option><option value="天津市" data-code="120000">天津市</option><option value="河北省" data-code="130000">河北省</option><option value="山西省" data-code="140000">山西省</option><option value="内蒙古自治区" data-code="150000">内蒙古自治区</option><option value="辽宁省" data-code="210000">辽宁省</option><option value="吉林省" data-code="220000">吉林省</option><option value="黑龙江省" data-code="230000">黑龙江省</option><option value="上海市" data-code="310000">上海市</option><option value="江苏省" data-code="320000">江苏省</option><option value="浙江省" data-code="330000">浙江省</option><option value="安徽省" data-code="340000">安徽省</option><option value="福建省" data-code="350000">福建省</option><option value="江西省" data-code="360000">江西省</option><option value="山东省" data-code="370000">山东省</option><option value="河南省" data-code="410000">河南省</option><option value="湖北省" data-code="420000">湖北省</option><option value="湖南省" data-code="430000">湖南省</option><option value="广东省" data-code="440000">广东省</option><option value="广西壮族自治区" data-code="450000">广西壮族自治区</option><option value="海南省" data-code="460000">海南省</option><option value="重庆市" data-code="500000">重庆市</option><option value="四川省" data-code="510000">四川省</option><option value="贵州省" data-code="520000">贵州省</option><option value="云南省" data-code="530000">云南省</option><option value="西藏自治区" data-code="540000">西藏自治区</option><option value="陕西省" data-code="610000">陕西省</option><option value="甘肃省" data-code="620000">甘肃省</option><option value="青海省" data-code="630000">青海省</option><option value="宁夏回族自治区" data-code="640000">宁夏回族自治区</option><option value="新疆维吾尔自治区" data-code="650000">新疆维吾尔自治区</option><option value="台湾省" data-code="710000">台湾省</option><option value="香港特别行政区" data-code="810000">香港特别行政区</option><option value="澳门特别行政区" data-code="820000">澳门特别行政区</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="city10">City</label>
+          <select class="form-control" id="city10"><option value="" data-code="">—— 市 ——</option></select>
+        </div>
+        <div class="form-group">
+          <label class="sr-only" for="district10">District</label>
+          <select class="form-control" id="district10"><option value="" data-code="">—— 区 ——</option></select>
+        </div>
+      </div>
+    </form>
+		</div>
+		
+	</div>
+	
+	<script src="jquery.min.js"></script>
+	<script src="bootstrap.min.js"></script>
+	<script src="distpicker.data.js"></script>
+	  <script src="distpicker.js"></script>
+	  <script src="main.js"></script>
+
+</body>
+</html>

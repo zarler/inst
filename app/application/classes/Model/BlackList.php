@@ -1,0 +1,87 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: water
+ * Date: 8/23/16
+ * Time: 13:41
+ */
+
+class Model_BlackList extends Model_Database{
+
+    const SOURCE_KUAIJIN = 1;//快金
+    const SOURCE_TONGDUN = 2;//同盾
+    const SOURCE_TONGDUN_SCORE = 21;//同盾评分
+    const SOUCRE_TONGDUN_ANTI_FRUAD = 22;//同盾反欺诈
+    const SOURCE_BAIRONG = 3;//百融
+    const SOURCE_JUXINLI = 4;//聚信立
+    const SOURCE_BAIQISHI = 71;//白骑士
+    const SOURCE_TONGHANG = 80;//同行逾期数据导出
+    const SOURCE_SUNFOUD_CREDIT = 81;//JAVA风险决策引擎
+
+
+
+    const IS_PENDING_STATUS = 1; //待审核
+    const IS_APPROVED_STATUS = 2;//已审核
+    const IS_DEL_STATUS = 3;//已删除
+
+
+
+    //检查命中(命中一项就算)
+    public function check($data){
+        if(isset($data['identity_code']) && !empty($data['identity_code'])){
+            $rs = DB::select('id')->from('blacklist')->where("identity_code","=",$data['identity_code'])->limit(1)->execute()->current();
+            if($rs){
+                return  TRUE;
+            }
+        }
+        if(isset($data['mobile']) && !empty($data['mobile'])){
+            $rs = DB::select('id')->from('blacklist')->where("mobile","=",$data['mobile'])->limit(1)->execute()->current();
+            if($rs){
+                return  TRUE;
+            }
+        }
+        return FALSE;
+    }
+
+    //检查两项都命中
+    public function createCheck($data){
+        $query = DB::select('id')->from('blacklist');
+        if(isset($data['identity_code']) && !empty($data['identity_code'])){
+            $query->and_where("identity_code","=",$data['identity_code']);
+        }
+        if(isset($data['mobile']) && !empty($data['mobile'])){
+            $query->and_where("mobile","=",$data['mobile']);
+        }
+        $rs = $query->limit(1)->execute()->current();
+        if($rs){
+            return TRUE;
+        }
+        return FALSE;
+    }
+
+    //添加黑名单
+    public function create($data){
+        return DB::insert("blacklist",array_keys($data))->values(array_values($data))->execute();
+    }
+
+
+    /*
+     * 集成查询与添加防止重复添加
+     */
+    public function addWithCheck($data){
+        if($this->createCheck($data)===FALSE){
+            return $this->create($data);
+        }
+        return FALSE;
+    }
+
+
+    // 根据用户id查询是否在黑名单中出现
+    public function getOneByUserId($user_id=0){
+        return DB::select()
+            ->from('blacklist')
+            ->where('user_id', '=', $user_id)
+            ->execute()
+            ->current();
+    }
+}

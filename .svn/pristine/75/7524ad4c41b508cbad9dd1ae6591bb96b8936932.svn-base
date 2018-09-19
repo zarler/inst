@@ -1,0 +1,54 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 2018/1/13
+ * Time: 下午1:07
+ *
+ * 产品费率模型
+ */
+abstract class Model_Abstract_ProductFee extends Model_Database
+{
+
+    protected $day_interest_rate = 0.001;           //日息利率
+    protected $month_interest_rate = 0.03;          //月息利率
+    protected $day_penalty_rate = 0.01;             //罚息日利率
+    protected $day_late_fee_rate = 0.01;            //滞纳金日利率
+    protected $penalty_max_day = 999;               //最大计息天数
+
+
+    public function dayInterestRate(){
+        return $this->day_interest_rate;
+    }
+
+    public function monthInterestRate(){
+        return $this->month_interest_rate;
+    }
+
+
+    public function dayPenaltyRate(){
+        return $this->day_penalty_rate;
+    }
+
+    public function dayLateFeeRate(){
+        return $this->day_late_fee_rate;
+    }
+
+    public function penaltyMaxDay(){
+        return $this->penalty_max_day;
+    }
+
+
+    abstract public function dayInterest($amount,$day=1);
+
+    abstract public function monthInterest($amount,$month=1);
+
+    abstract public function dayPenalty($amount,$day=1);
+
+    abstract public function dayLateFee($amount,$day=1);
+
+
+
+
+}

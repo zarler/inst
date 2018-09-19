@@ -1,0 +1,44 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: wangchao
+ * Date: 2018/1/13
+ * Time: 下午2:19
+ *
+ * 同盾 入口
+ */
+
+class Lib_Risk_API_TONGDUN2_API extends Lib_Common
+{
+
+    public function query($param){
+        if(empty($param['user_id'])){
+            $user_id=0;
+        }else{
+            $user_id=$param['user_id'];
+        }
+        $event_data['user_id'] = $user_id;
+
+        if(empty($param['account_name'])||empty($param['id_number'])||empty($param['account_mobile'])||empty($param['event_type'])){
+            $result=array('status'=>false,'msg'=>'发送失败','error'=>'9999','api_result'=>array('result'=>'9999','data'=>'','msg'=>'account_name/id_number/account_mobile/event_type均不能为空'));
+        }else{
+            if(($param['event_type']=='IOS'||$param['event_type']=='ANDROID')&&empty($param['black_box'])){
+                $result=array('status'=>false,'msg'=>'发送失败','error'=>'9999','api_result'=>array('result'=>'9999','data'=>'','msg'=>'event_type=IOS/ANDROID black_box不能为空'));
+            }else{
+                $event_data['account_name'] = $param['account_name'];
+                $event_data['id_number'] = $param['id_number'];
+                $event_data['account_mobile'] = $param['account_mobile'];
+                $event_data['event_type'] = $param['event_type'];
+                $event_data['token_id'] = !empty($param['token_id'])?$param['token_id']:'';
+                $event_data['black_box'] = $param['black_box'];
+                $event_data['partner_code'] = !empty($param['partner_code'])?$param['partner_code']:'';
+                $event_data['resp_detail_type'] = 'device';
+
+                $td = new Lib_Risk_API_TONGDUN2_API_RiskService($event_data,true);
+                $result=$td->sendRequest();
+
+            }
+        }
+        return $result;
+    }
+}

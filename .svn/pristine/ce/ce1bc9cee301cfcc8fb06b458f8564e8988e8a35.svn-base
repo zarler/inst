@@ -1,0 +1,298 @@
+<?php
+defined('SYSPATH') or die('No direct script access.');
+/**
+ * Created by PhpStorm.
+ * User: majin
+ * Date: 16/10/14
+ * Time: 下午2:04
+ *
+ * 快金 反欺诈埋点处理
+ *
+ * 例子:
+ *  基础授信里的百融特殊名单
+ *  Lib::factory('TCCredit_AntiFraud')->user_id($this->user_id)->module('BaiRong','SpecialList_c')->review($this->last_update_time,$this->last_repay_time,Model_User::STATUS_DENYFOREVER);
+ *  极速贷 & 降担保申请 带有紧急联系人的特殊名单
+ *
+ *
+ */
+class Lib_TCCredit_AntiFraud {
+    const INIT = Model_AntiFraud::INIT;             //初始值(未查询)
+    const PASS = Model_AntiFraud::PASS;             //通过
+    const UNPASS = Model_AntiFraud::UNPASS;         //未通过
+
+    const MODULES = [                    //模块名与对应方法
+        'BaiRong' => [                      //百融
+            'SpecialList_c' =>          [   //特殊名单
+                'lib' =>  'AntiFraud_BaiRong',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_BAIRONG_SPECIALLIST_C, //日志类型 首次与再次区分开
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_BAIRONG_SPECIALLIST_C_AGAIN,//日志类型 首次与再次区分开
+            ],
+            'SpecialList_c_contact' =>  [   //特殊名单带紧急联系人
+                'lib' => 'AntiFraud_BaiRong',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_BAIRONG_SPECIALLIST_C_CONTACT,
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_BAIRONG_SPECIALLIST_C_CONTACT_AGAIN,
+            ],
+            'ApplyLoan' =>              [   //多次申请借款
+                'lib' => 'AntiFraud_BaiRong',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_BAIRONG_APPLYLOAN,
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_BAIRONG_APPLYLOAN_AGAIN,
+            ],
+            'Execution' =>              [   //法院执行名单
+                'lib' => 'AntiFraud_BaiRong',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_BAIRONG_EXECUTION,
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_BAIRONG_EXECUTION_AGAIN,
+            ],
+            'TelCheck' =>              [   //手机实名认证
+                'lib' => 'AntiFraud_BaiRong',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_BAIRONG_TELCHECK,
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_BAIRONG_TELCHECK_AGAIN,
+            ],
+            'TelPeriodCheck' =>              [//手机号码在网时长 (是否通过 未匹配或查询失败为通过)
+                'lib' => 'AntiFraud_BaiRong',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_BAIRONG_TELPERIOD,
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_BAIRONG_TELPERIOD_AGAIN,
+            ],
+            'TelPeriod' =>              [//手机号码在网时长 (具体时间段)
+                'lib' => 'AntiFraud_BaiRong',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_BAIRONG_TELPERIOD,
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_BAIRONG_TELPERIOD_AGAIN,
+            ],
+
+        ],
+        'TongDun'=> [                   //同盾
+            'SpecialList' =>            [   //特殊名单
+                'lib' =>      'AntiFraud_TongDun',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_TONGDUN_SPECIALLIST,
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_TONGDUN_SPECIALLIST_AGAIN,
+            ],
+            'ApplyLoan' =>              [   //多次申请借款
+                'lib' =>      'AntiFraud_TongDun',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_TONGDUN_APPLYLOAN,
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_TONGDUN_APPLYLOAN_AGAIN,
+            ],
+            'Equipment' =>            [   //设备反欺诈
+                'lib' =>      'AntiFraud_TongDun',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_TONGDUN_EQUIPMENT,
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_TONGDUN_EQUIPMENT_AGAIN,
+            ],
+        ],
+        'BaiQiShi'=> [                   //白骑士
+            'BlackList' =>            [   //特殊名单
+                'lib' =>      'BaiQiShi_BlackList',
+                'log_type_first'=>Model_AntiFraud_Log::TYPE_BAIQISHI_BLACKLIST,
+                'log_type_again'=>Model_AntiFraud_Log::TYPE_BAIQISHI_BLACKLIST_AGAIN,
+            ],
+
+        ],
+    ];
+    const MODELS =[                 //反欺诈模块组 Model名字
+        'BaiRong'  => 'AntiFraud_BaiRong',
+        'TongDun'  => 'AntiFraud_TongDun',
+        'BaiQiShi' => 'BaiQiShi',
+    ];
+
+
+
+
+    protected $user;                    //用户记录
+    protected $model = [];              //MODEL对象数组
+    protected $record = [];             //简表结果
+    protected $result = 0;
+    protected $result_array = array();  //附属属性
+    protected $provider = '';           //服务供应者  BaiRong百融   TongDun同盾
+    protected $module = '';             //调用模块
+    protected $api_query = FALSE;       //是否请求api
+    /*
+     * 1 百融反欺诈 0.3
+     * 3 百融多头借贷 0.3
+     * 2 同盾 1
+     * 4 百融法院执行名单 1.2
+     *
+     * 百融的请求可以分成单个查询,有一个命中了后面就不用跑了.
+     *
+     */
+    public function __construct($user_id=0) {
+        if($user_id>0){
+            $this->user_id($user_id);
+        }
+    }
+
+    //初始化用户
+    public function user_id($user_id){
+        $this->user = Model::factory('User')->get_one($user_id);
+        return $this;
+    }
+
+    public function module($provider,$module){
+        if(self::MODULES[$provider][$module]!==NULL){
+            $this->provider = $provider;
+            $this->module = $module;
+        }
+
+        return $this;
+    }
+
+
+    /**
+     * 从数据库中读出结果
+     * @return array
+     */
+    public function get_record(){
+        if(isset($this->user['id']) && $this->provider && $this->module) {
+            $this->record = Model::factory(self::MODELS[$this->provider])->get_short_one_by_user_id($this->user['id'],$this->module);
+        }
+        return $this->record;
+    }
+
+
+    /**
+     * 返回结论(通过/未通过) 如果数据库中没有记录自动通过API请求并计算保存结论
+     * @return int
+     */
+    public function get_result(){
+        if(isset($this->user['id']) && $this->provider && $this->module) {
+            $this->get_record();
+            if (!isset($this->record['result']) || $this->record['result'] == self::INIT) {
+                $this->result = $this->flush_result();//从API计算结果
+            } elseif (isset($this->record['result'])) {//数据库读出结果
+                $this->result = $this->record['result'];
+            }
+        }
+        return $this->result;
+    }
+
+
+    /**
+     * 强制刷新结果
+     * @return int
+     */
+    public function flush_result(){
+        if(isset($this->user['id']) && $this->provider && $this->module) {
+            $this->api_query = TRUE;
+            $result = Lib::factory(self::MODULES[$this->provider][$this->module]['lib'])->user_id($this->user['id'])->get_anti_fraud($this->module);
+            if(is_array($result)){
+                $this->result_array =$result;
+                $this->result = $result['result'];
+            }else{
+                $this->result = $result;
+            }
+
+        }
+        return $this->result;
+    }
+
+
+
+
+    /**
+     * 反欺诈结果决策
+     *  检查用户最近是否有更新反欺诈记录,如没有再检查是否有成功还款.都没有则更新反欺诈,结果影响用户状态同时记录日志.
+     * @param $last_repay_time 最近还款有效期 例如:30天以内
+     * @param $last_update_time 最近更新有效期 例如:30天以内
+     * @param $unpass_user_status  未通过时需要的操作更改用户状态 可以是数组 如果为NULL 则不更改用户状态
+     * @return int
+     */
+    public function review($last_update_time,$last_repay_time,$unpass_user_status,$redo=TRUE){
+        if(isset($this->user['id']) && self::MODULES[$this->provider][$this->module]!==NULL) {
+            $this->get_record();
+            if(isset($this->record['result'])){
+                $this->result = $this->record['result'];
+            }
+            if(!$this->record || (isset($this->record['result']) && $this->record['result']==self::INIT) ) { //从未检查过,第一次不需要检查有效期
+                $this->get_result();
+                if ($this->result !== FALSE && (int)$this->result == (int)self::UNPASS) {
+                    if (is_array($unpass_user_status)) {//多个用户状态时
+                        if (isset($this->result_array['level']) && isset($unpass_user_status[$this->result_array['level'] - 1])) {
+                            $tmp_user_status = $unpass_user_status[$this->result_array['level'] - 1];
+                        } else {
+                            $tmp_user_status = $unpass_user_status[0];
+                        }
+                        if ((int)$this->user['status'] != (int)$tmp_user_status) {
+                            Model::factory('User')->update($this->user['id'], array('status' => $tmp_user_status));
+                            Model::factory('AntiFraud_Log')->create($this->user['id'], self::MODULES[$this->provider][$this->module]['log_type_first'], $this->result, $this->user['status'], $tmp_user_status);
+                        }
+                    } elseif ($unpass_user_status!==NULL && (int)$unpass_user_status != (int)$this->user['status']) {//用户状态相同则不需要更改
+                        Model::factory('User')->update($this->user['id'], array('status' => $unpass_user_status));
+                        Model::factory('AntiFraud_Log')->create($this->user['id'], self::MODULES[$this->provider][$this->module]['log_type_first'], $this->result, $this->user['status'], $unpass_user_status);
+                    }
+                }
+            }elseif(($last_update_time>0 || $last_repay_time>0) && $redo===TRUE){//考虑时间因素,超过某个时期远程请求更新结果
+                $last_time = $this->record['update_time'] ? strtotime($this->record['update_time']) : $this->record['create_time'];
+                if($last_time+$last_update_time < time()){//发现最后更新时间超出有效期 继续判断最近订单还款时间
+                    $rs1 = Model::factory('Order')->last_repayment_success($this->user['id']);
+                    if( !$rs1 || (isset($rs1['repayment_finish_time']) && $rs1['repayment_finish_time']>0 && $rs1['repayment_finish_time']+$last_repay_time < time()) ){//没有最近还款或最近还款超过有效期
+                        $this->flush_result();
+                        if($this->result!==FALSE && (int)$this->result == (int)self::UNPASS ){
+                            if(is_array($unpass_user_status)){//多个用户状态时
+                                if( isset($this->result_array['level']) && isset($unpass_user_status[$this->result_array['level']-1])){
+                                    $tmp_user_status = $unpass_user_status[$this->result_array['level']-1];
+                                }else{
+                                    $tmp_user_status = $unpass_user_status[0];
+                                }
+                                if( (int) $this->user['status'] != (int)$tmp_user_status ) {
+                                    Model::factory('User')->update($this->user['id'], array('status' => $tmp_user_status));
+                                    Model::factory('AntiFraud_Log')->create($this->user['id'], self::MODULES[$this->provider][$this->module]['log_type_again'],$this->result,$this->user['status'],$tmp_user_status);
+                                }
+                            }elseif(  $unpass_user_status!==NULL &&  (int)$unpass_user_status!=(int)$this->user['status']) {//识别未通过,检查用户状态是否已经更改过
+                                Model::factory('User')->update($this->user['id'], array('status' => $unpass_user_status));
+                                Model::factory('AntiFraud_Log')->create($this->user['id'], self::MODULES[$this->provider][$this->module]['log_type_again'],$this->result,$this->user['status'],$unpass_user_status);
+                            }
+                        }
+                    }
+                }
+            }elseif(isset($this->record['result']) && (int)$this->record['result']!==(int)self::INIT && $redo===FALSE){//只对外请求一次,不考虑时间因素
+                return $this->result;
+            }else{//针对通过的老用户,如果出现新的拒绝结论时,自动更改用户状态为拒绝。
+                if($this->result!==FALSE && (int)$this->result == (int)self::UNPASS ){
+                    if(is_array($unpass_user_status)){//多个用户状态时
+                        if( isset($this->result_array['level']) && isset($unpass_user_status[$this->result_array['level']-1])){
+                            $tmp_user_status = $unpass_user_status[$this->result_array['level']-1];
+                        }else{
+                            $tmp_user_status = $unpass_user_status[0];
+                        }
+                        if( (int) $this->user['status'] != (int)$tmp_user_status ) {
+                            Model::factory('User')->update($this->user['id'], array('status' => $tmp_user_status));
+                            Model::factory('AntiFraud_Log')->create($this->user['id'], self::MODULES[$this->provider][$this->module]['log_type_again'],$this->result,$this->user['status'],$tmp_user_status);
+                        }
+                    }elseif( $unpass_user_status!==NULL &&  (int)$unpass_user_status!=(int)$this->user['status']) {//单个用户状态时
+                        Model::factory('User')->update($this->user['id'], array('status' => $unpass_user_status));
+                        Model::factory('AntiFraud_Log')->create($this->user['id'], self::MODULES[$this->provider][$this->module]['log_type_again'],$this->result,$this->user['status'],$unpass_user_status);
+                    }
+                }
+            }
+        }
+        return $this->result;
+    }
+
+
+    /** 超期更新result
+     * @param int $last_update_time
+     * @param $unpass_user_status
+     * @return int
+     */
+    public function last_update_review($last_update_time=0,$unpass_user_status){
+        if(isset($this->user['id']) && self::MODULES[$this->provider][$this->module]!==NULL) {
+            $this->get_record();
+            $last_time = 0;
+            if (isset($this->record['result'])) {
+                $this->result = $this->record['result'];
+                $last_time = $this->record['update_time'] ? strtotime($this->record['update_time']) : $this->record['create_time'];
+            }
+            if ($last_time < $last_update_time || (int)$this->record['result']==(int)self::INIT ) {//发现最后更新时间早于 参数时间
+                $this->flush_result();
+                if ($this->result !== FALSE && (int)$this->result == (int)self::UNPASS) {
+                    if ($unpass_user_status !== NULL && (int)$unpass_user_status != (int)$this->user['status']) {//识别未通过,检查用户状态是否已经更改过
+                        Model::factory('User')->update($this->user['id'], array('status' => $unpass_user_status));
+                        Model::factory('AntiFraud_Log')->create($this->user['id'], self::MODULES[$this->provider][$this->module]['log_type_again'], $this->result, $this->user['status'], $unpass_user_status);
+                    }
+                }
+
+            }
+        }
+        return $this->result;
+
+    }
+
+
+
+}

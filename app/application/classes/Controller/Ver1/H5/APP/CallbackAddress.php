@@ -1,0 +1,49 @@
+<?php defined('SYSPATH') or die('No direct script access.');
+
+/*
+ * 回调地址
+ *  * Lib::factory('Debug')->D($this->controller);
+ * Lib::factory('Dir')->dir_path(self::$config['security_path']).$result[0]['uri']);
+ * Lib::factory('Debug')->array2file(array(1,2,3,4,5), APPPATH.'../static/liu_test.php');
+ *
+ *
+ * */
+class Controller_Ver1_H5_APP_CallbackAddress extends AppCore {
+//class Controller_Ver1_H5_APP_Chedit extends Common {
+    public function before(){
+        parent::before();
+    }
+    /************************************************
+     * 魔蝎
+     ************************************************/
+	public function action_MoXie()
+	{
+        $this->Load();
+        if(isset($_GET['taskType'])&&isset($_GET['mxcode'])&&$_GET['taskType']==1&&$_GET['mxcode']==1){
+            $arr = [
+                'taskType' => isset($_GET['taskType'])?$_GET['taskType']:'',
+                'userId' => isset($_GET['userId'])?$_GET['userId']:'',
+                'taskId' => isset($_GET['taskId'])?$_GET['taskId']:'',
+            ];
+            Lib::factory('Debug')->array2file(array($_GET), APPPATH.'../static/liu_test.php');
+            $result = Lib::factory('Moxie_Notify')->H5Query($arr);
+            if(Valid::not_empty($result)){
+                $result = json_decode($result,true);
+                if(is_array($result)){
+                    if(isset($result['code'])&&$result['code']=1000){
+                        $this->redirect('/?#jump=yes');
+                    }else{
+                        $this->error("获取失败！");
+                    }
+                }else{
+                    $this->error("获取失败！");
+                }
+            }else{
+                $this->error("获取失败！");
+            }
+        }else{
+            $this->error("获取失败！");
+        }
+	}
+
+}

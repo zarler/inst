@@ -1,0 +1,38 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangge
+ * Date: 2018/1/10
+ * Time: 下午3:04
+ */
+class Lib_Risk_API_QianHai_Api extends Lib_Common
+{
+    private $user_id = 0;
+
+    // 初始化用户
+    public function user_id($user_id){
+        $this->user_id = $user_id;
+        return $this;
+    }
+    public function execute($info){
+        $colusion = Model::factory("QianHai")->getOne($this->user_id);
+        if($colusion){
+            if($colusion['status'] == Model_QianHai::USER_QIANHAI_STATUS_PASS){
+                return true;
+            }
+            return false;
+        }
+        $response_data = Lib::factory("Risk_API_QianHai_Api_Client")->execute($info);
+        if(isset($response_data['status']) && $response_data['status'] == true){
+            Model::factory("QianHai")->create($this->user_id,$info,$response_data);
+            Model::factory("QianHai")->create_short($this->user_id,Model_QianHai::USER_QIANHAI_STATUS_INIT);
+            return $response_data;
+        }
+        if(!$response_data){
+            return false;
+        }else{
+            Model::factory("QianHai")->create($this->user_id,$info,$response_data);
+            return $response_data;
+        }
+    }
+}

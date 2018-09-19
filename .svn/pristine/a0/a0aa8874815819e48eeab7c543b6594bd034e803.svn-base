@@ -1,0 +1,233 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: wangchao
+ * Date: 2018/1/24
+ * Time: 下午1:52
+ *
+ * Lib::factory("CreditReview_Moxie")->user_id(1000007)->getDecision('Mno')->body();
+ */
+class Lib_CreditReview_Moxie extends Lib_CreditReview_RiskCommon
+
+{
+
+//    protected $user;
+    protected $action;
+
+    const PROVIDER = "Moxie";
+
+
+    //魔蝎-运营商
+    public function Mno()
+    {
+
+        $rs = Model::factory('Moxie_Queue')->get_one($this->user_id, 'Mno');
+
+        $res = Lib::factory('Moxie_GetReport')->query(
+            [
+                'task_id' => $rs['task_id'],
+                'extends' => $rs['extends'],
+                'mobile' => $rs['mobile'],
+                'action' => $rs['action'],
+            ]
+        );
+
+        if ($this->is_json($res)) {
+            $data = json_decode($res, true);
+            if (isset($data['status']) && $data['status'] == true) {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'message' => '接口请求成功']);
+            } else {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+            }
+        } else {
+            $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+        }
+
+        return $this;
+    }
+
+    //魔蝎-公积金
+    public function Fund()
+    {
+        $rs = Model::factory('Moxie_Queue')->get_one($this->user_id, 'Fund');
+        $res = Lib::factory('Moxie_GetReport')->query(
+            [
+                'task_id' => $rs['task_id'],
+                'extends' => $rs['extends'],
+                'action' => $rs['action'],
+            ]
+        );
+
+        if ($this->is_json($res)) {
+            $data = json_decode($res, true);
+            if (isset($data['status']) && $data['status'] == true) {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'message' => '接口请求成功']);
+            } else {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+            }
+        } else {
+            $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+        }
+
+        return $this;
+    }
+
+    //魔蝎-淘宝
+    public function Taobao()
+    {
+        $rs = Model::factory('Moxie_Queue')->get_one($this->user_id, 'Taobao');
+        $res = Lib::factory('Moxie_GetReport')->query(
+            [
+                'task_id' => $rs['task_id'],
+                'extends' => $rs['extends'],
+                'action' => $rs['action'],
+            ]
+        );
+
+        if ($this->is_json($res)) {
+            $data = json_decode($res, true);
+            if (isset($data['status']) && $data['status'] == true) {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'message' => '接口请求成功']);
+            } else {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+            }
+        } else {
+            $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+        }
+
+        return $this;
+    }
+
+    //魔蝎-京东
+    public function JD()
+    {
+        $rs = Model::factory('Moxie_Queue')->get_one($this->user_id, 'JD');
+        $res = Lib::factory('Moxie_GetReport')->query(
+            [
+                'task_id' => $rs['task_id'],
+                'extends' => $rs['extends'],
+                'action' => $rs['action'],
+            ]
+        );
+
+        if ($this->is_json($res)) {
+            $data = json_decode($res, true);
+            if (isset($data['status']) && $data['status'] == true) {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'message' => '接口请求成功']);
+            } else {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+            }
+        } else {
+            $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+        }
+
+        return $this;
+    }
+
+    //魔蝎-社保
+    public function SocialSecurity()
+    {
+        $rs = Model::factory('Moxie_Queue')->get_one($this->user_id, 'SocialSecurity');
+        $res = Lib::factory('Moxie_GetReport')->query(
+            [
+                'task_id' => $rs['task_id'],
+                'extends' => $rs['extends'],
+                'action' => $rs['action'],
+            ]
+        );
+
+        if ($this->is_json($res)) {
+            $data = json_decode($res, true);
+            if (isset($data['status']) && $data['status'] == true) {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'message' => '接口请求成功']);
+            } else {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+            }
+        } else {
+            $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+        }
+
+        return $this;
+    }
+
+    //魔蝎-信用卡账单
+    public function Email()
+    {
+
+        $rs = Model::factory('Moxie_Queue')->get_one($this->user_id, 'Email');
+        if (!isset($rs['email_id'])) {
+            $this->response(false, [], Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, '接口异常');
+        }
+        $res = Lib::factory('Moxie_GetReport')->query(
+            [
+                'task_id' => $rs['task_id'],
+                'extends' => $rs['extends'],
+                'email_id' => $rs['email_id'],
+                'action' => $rs['action'],
+            ]
+        );
+
+
+        if ($this->is_json($res)) {
+            $data = json_decode($res, true);
+            if (isset($data['status']) && $data['status'] == true) {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_SUCCESS, 'message' => '接口请求成功']);
+            } else {
+                $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+            }
+        } else {
+            $this->response(true, ['result' => Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, 'message' => '接口异常']);
+        }
+
+        return $this;
+    }
+
+    //第一步远程请求
+    public function getData($action)
+    {
+        if ($action) {
+
+            call_user_func_array('self::'.$action, ['data' => []]);
+        } else {
+            $this->response(false, [], Lib_Common::LIB_COMMON_API_RESULT_EXCEPTION, '缺少参数 action');
+        }
+
+        return $this;
+    }
+
+    //第二步 获取数据并发送
+
+    public function sendData($action)
+    {
+
+        $Original = Model::factory("Moxie_Report")->get_report($this->user_id, $action, 1);
+        $Report = Model::factory("Moxie_Report")->get_report($this->user_id, $action, 2);
+//        var_dump($Original);die;
+        if (isset($Original['data']) && isset($Report['data'])) {
+            $data = [
+                'data' => [
+                    'Original' => $Original['data'],
+                    'Report' => $Report['data'],
+                ],
+                'provider' => self::PROVIDER,
+                'action' => $action,
+            ];
+        }
+
+        $this->send($data, self::PROVIDER, $action);
+
+        return $this;
+    }
+
+    //第三步 获取决策
+
+    public function getDecision($action)
+    {
+        $this->get(self::PROVIDER, $action);
+
+        return $this;
+    }
+
+
+}
